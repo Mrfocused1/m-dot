@@ -927,73 +927,77 @@ const Input = {
         // Only process if moved at least 30px (prevents accidental swipes)
         if (distance < 30) return;
 
-        // Determine primary swipe direction
-        const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
-        const isVertical = Math.abs(deltaY) > Math.abs(deltaX);
+        // Calculate angle to determine 8-directional movement
+        const absDeltaX = Math.abs(deltaX);
+        const absDeltaY = Math.abs(deltaY);
 
-        // Swipe DOWN = STOP command (makes character idle)
-        if (deltaY > 0 && isVertical) {
-            console.log('📱 Swipe DOWN detected - STOP (become idle)');
-            MazeController.keysPressed.up = false;
-            MazeController.keysPressed.down = false;
-            MazeController.keysPressed.left = false;
-            MazeController.keysPressed.right = false;
-            this.touchStartX = touch.clientX;
-            this.touchStartY = touch.clientY;
-            return;
-        }
+        // Determine if swipe is more diagonal (both components significant) or cardinal (one dominant)
+        const ratio = Math.min(absDeltaX, absDeltaY) / Math.max(absDeltaX, absDeltaY);
+        const isDiagonal = ratio > 0.4; // If ratio > 0.4, treat as diagonal
 
-        // Swipe UP = Move forward continuously (pure vertical, no horizontal)
-        if (deltaY < 0 && isVertical) {
-            console.log('📱 Swipe UP detected - continuous forward movement (pure)');
-            MazeController.keysPressed.up = true;
-            MazeController.keysPressed.down = false;
-            MazeController.keysPressed.left = false;   // Clear horizontal movement
-            MazeController.keysPressed.right = false;  // Clear horizontal movement
-            this.touchStartX = touch.clientX;
-            this.touchStartY = touch.clientY;
-            return;
-        }
-
-        // Swipe LEFT = Strafe left continuously (pure horizontal, no vertical)
-        if (deltaX < 0 && isHorizontal) {
-            console.log('📱 Swipe LEFT detected - continuous left movement (pure)');
-            MazeController.keysPressed.left = true;
-            MazeController.keysPressed.right = false;
-            MazeController.keysPressed.up = false;     // Clear vertical movement
-            MazeController.keysPressed.down = false;   // Clear vertical movement
-            this.touchStartX = touch.clientX;
-            this.touchStartY = touch.clientY;
-            return;
-        }
-
-        // Swipe RIGHT = Strafe right continuously (pure horizontal, no vertical)
-        if (deltaX > 0 && isHorizontal) {
-            console.log('📱 Swipe RIGHT detected - continuous right movement (pure)');
-            MazeController.keysPressed.right = true;
-            MazeController.keysPressed.left = false;
-            MazeController.keysPressed.up = false;     // Clear vertical movement
-            MazeController.keysPressed.down = false;   // Clear vertical movement
-            this.touchStartX = touch.clientX;
-            this.touchStartY = touch.clientY;
-            return;
-        }
-
-        // Diagonal swipes - allow combined directions
-        if (deltaY < 0 && deltaX > 0) {
-            // UP + RIGHT
-            console.log('📱 Swipe UP-RIGHT detected - diagonal movement');
-            MazeController.keysPressed.up = true;
-            MazeController.keysPressed.right = true;
-            MazeController.keysPressed.down = false;
-            MazeController.keysPressed.left = false;
-        } else if (deltaY < 0 && deltaX < 0) {
-            // UP + LEFT
-            console.log('📱 Swipe UP-LEFT detected - diagonal movement');
-            MazeController.keysPressed.up = true;
-            MazeController.keysPressed.left = true;
-            MazeController.keysPressed.down = false;
-            MazeController.keysPressed.right = false;
+        // Handle all 8 directions
+        if (isDiagonal) {
+            // DIAGONAL MOVEMENTS
+            if (deltaY < 0 && deltaX > 0) {
+                // UP-RIGHT
+                console.log('📱 Swipe UP-RIGHT (diagonal)');
+                MazeController.keysPressed.up = true;
+                MazeController.keysPressed.right = true;
+                MazeController.keysPressed.down = false;
+                MazeController.keysPressed.left = false;
+            } else if (deltaY < 0 && deltaX < 0) {
+                // UP-LEFT
+                console.log('📱 Swipe UP-LEFT (diagonal)');
+                MazeController.keysPressed.up = true;
+                MazeController.keysPressed.left = true;
+                MazeController.keysPressed.down = false;
+                MazeController.keysPressed.right = false;
+            } else if (deltaY > 0 && deltaX > 0) {
+                // DOWN-RIGHT
+                console.log('📱 Swipe DOWN-RIGHT (diagonal)');
+                MazeController.keysPressed.down = true;
+                MazeController.keysPressed.right = true;
+                MazeController.keysPressed.up = false;
+                MazeController.keysPressed.left = false;
+            } else if (deltaY > 0 && deltaX < 0) {
+                // DOWN-LEFT
+                console.log('📱 Swipe DOWN-LEFT (diagonal)');
+                MazeController.keysPressed.down = true;
+                MazeController.keysPressed.left = true;
+                MazeController.keysPressed.up = false;
+                MazeController.keysPressed.right = false;
+            }
+        } else {
+            // CARDINAL DIRECTIONS (pure up/down/left/right)
+            if (deltaY < 0 && absDeltaY > absDeltaX) {
+                // PURE UP (forward)
+                console.log('📱 Swipe UP (pure) - run forward');
+                MazeController.keysPressed.up = true;
+                MazeController.keysPressed.down = false;
+                MazeController.keysPressed.left = false;
+                MazeController.keysPressed.right = false;
+            } else if (deltaY > 0 && absDeltaY > absDeltaX) {
+                // PURE DOWN (backward)
+                console.log('📱 Swipe DOWN (pure) - run backward');
+                MazeController.keysPressed.down = true;
+                MazeController.keysPressed.up = false;
+                MazeController.keysPressed.left = false;
+                MazeController.keysPressed.right = false;
+            } else if (deltaX < 0 && absDeltaX > absDeltaY) {
+                // PURE LEFT
+                console.log('📱 Swipe LEFT (pure)');
+                MazeController.keysPressed.left = true;
+                MazeController.keysPressed.right = false;
+                MazeController.keysPressed.up = false;
+                MazeController.keysPressed.down = false;
+            } else if (deltaX > 0 && absDeltaX > absDeltaY) {
+                // PURE RIGHT
+                console.log('📱 Swipe RIGHT (pure)');
+                MazeController.keysPressed.right = true;
+                MazeController.keysPressed.left = false;
+                MazeController.keysPressed.up = false;
+                MazeController.keysPressed.down = false;
+            }
         }
 
         this.touchStartX = touch.clientX;
