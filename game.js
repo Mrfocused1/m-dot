@@ -3584,7 +3584,7 @@ const UI = {
                     <h1 style="font-size: 52px; color: #4fc3f7; margin-bottom: 10px;">GAP TAG</h1>
                     <p style="font-size: 18px; margin-bottom: 40px; color: #888;">Get your tooth back!</p>
 
-                    <h2 style="font-size: 28px; margin-bottom: 30px;">Select Level</h2>
+                    <h2 style="font-size: 28px; margin-bottom: 30px;">Select Stage</h2>
 
                     <div style="display: flex; gap: 30px; flex-wrap: wrap; justify-content: center;">
                         <!-- Level 1: Chase the Opp -->
@@ -3600,14 +3600,14 @@ const UI = {
                         " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 10px 30px rgba(102,126,234,0.5)'"
                            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
                             <div style="font-size: 40px; margin-bottom: 15px;">🏃</div>
-                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Chase the Opp</h3>
-                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Catch the enemy while dodging obstacles!</p>
+                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 1</h3>
+                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Chase the enemy while dodging obstacles!</p>
                             <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
                                 <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
                             </div>
                         </div>
 
-                        <!-- Level 2: Animation Testing -->
+                        <!-- Level 2: Tunnel Scene -->
                         <div onclick="selectLevel('shoot')" style="
                             width: 250px;
                             padding: 30px;
@@ -3619,16 +3619,16 @@ const UI = {
                             border: 3px solid transparent;
                         " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 10px 30px rgba(33,150,243,0.5)'"
                            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
-                            <div style="font-size: 40px; margin-bottom: 15px;">🎬</div>
-                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Animation Testing</h3>
-                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Test officer animations on a grid!</p>
+                            <div style="font-size: 40px; margin-bottom: 15px;">🚗</div>
+                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 2</h3>
+                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Walk through the tunnel scene!</p>
                             <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
-                                <span style="font-size: 12px; font-weight: bold;">▶ TEST NOW</span>
+                                <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
                             </div>
                         </div>
                     </div>
 
-                    <p style="font-size: 14px; color: #666; margin-top: 40px;">Tap LEFT or RIGHT to move • Catch the enemy to score</p>
+                    <p style="font-size: 14px; color: #666; margin-top: 40px;">Use WASD or Arrow Keys to move</p>
                 </div>
             `;
         } else if (GameState.screen === 'PLAYING') {
@@ -4132,6 +4132,9 @@ function init() {
         startShootingGame();
     } else {
         console.log('📋 Showing level selection menu (use ?v=2&mode=test to auto-start Animation Testing)');
+        GameState.screen = 'START';
+        GameState.isRunning = false;
+        UI.updateUI();
     }
 
     // Start animation loop
