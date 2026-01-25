@@ -3741,13 +3741,9 @@ function startShootingGame() {
 
     UI.updateUI();
 
-    // RALPH: Create debug dashboards
-    createDebugDashboard();
-    createStepTrackerDashboard();
-
-    // Show position tracker dashboards by default
-    if (debugDashboard) debugDashboard.style.display = 'block';
-    if (stepTrackerDashboard) stepTrackerDashboard.style.display = 'block';
+    // Debug dashboards removed for production
+    // createDebugDashboard();
+    // createStepTrackerDashboard();
 }
 
 function gameOver() {
