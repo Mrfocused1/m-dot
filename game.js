@@ -943,31 +943,37 @@ const Input = {
             return;
         }
 
-        // Swipe UP = Move forward continuously
+        // Swipe UP = Move forward continuously (pure vertical, no horizontal)
         if (deltaY < 0 && isVertical) {
-            console.log('📱 Swipe UP detected - continuous forward movement');
+            console.log('📱 Swipe UP detected - continuous forward movement (pure)');
             MazeController.keysPressed.up = true;
             MazeController.keysPressed.down = false;
+            MazeController.keysPressed.left = false;   // Clear horizontal movement
+            MazeController.keysPressed.right = false;  // Clear horizontal movement
             this.touchStartX = touch.clientX;
             this.touchStartY = touch.clientY;
             return;
         }
 
-        // Swipe LEFT = Strafe left continuously
+        // Swipe LEFT = Strafe left continuously (pure horizontal, no vertical)
         if (deltaX < 0 && isHorizontal) {
-            console.log('📱 Swipe LEFT detected - continuous left movement');
+            console.log('📱 Swipe LEFT detected - continuous left movement (pure)');
             MazeController.keysPressed.left = true;
             MazeController.keysPressed.right = false;
+            MazeController.keysPressed.up = false;     // Clear vertical movement
+            MazeController.keysPressed.down = false;   // Clear vertical movement
             this.touchStartX = touch.clientX;
             this.touchStartY = touch.clientY;
             return;
         }
 
-        // Swipe RIGHT = Strafe right continuously
+        // Swipe RIGHT = Strafe right continuously (pure horizontal, no vertical)
         if (deltaX > 0 && isHorizontal) {
-            console.log('📱 Swipe RIGHT detected - continuous right movement');
+            console.log('📱 Swipe RIGHT detected - continuous right movement (pure)');
             MazeController.keysPressed.right = true;
             MazeController.keysPressed.left = false;
+            MazeController.keysPressed.up = false;     // Clear vertical movement
+            MazeController.keysPressed.down = false;   // Clear vertical movement
             this.touchStartX = touch.clientX;
             this.touchStartY = touch.clientY;
             return;
