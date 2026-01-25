@@ -2234,9 +2234,6 @@ let roverEvoque = null;
 let mercA45 = null;
 let fordFiesta = null;
 
-}
-
-
 function loadVW_TCross_V2_Bigger_OnFloor() {
     console.log('Loading VW T-Cross - 1.5x scale, on floor');
     console.log('Attempting to load from: vw_tcross.glb');
