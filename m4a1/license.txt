@@ -1,0 +1,11 @@
+Model Information:
+* title:	M4A1
+* source:	https://sketchfab.com/3d-models/m4a1-a51fee212ef14032bc679b32ccc79119
+* author:	Remaxp36 (https://sketchfab.com/Remaxp36)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "M4A1" (https://sketchfab.com/3d-models/m4a1-a51fee212ef14032bc679b32ccc79119) by Remaxp36 (https://sketchfab.com/Remaxp36) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

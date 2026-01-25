@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fight Animation Compatibility Test</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a2e; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0,0,0,0.9);
+            padding: 15px;
+            font-size: 14px;
+            z-index: 100;
+            max-width: 500px;
+        }
+        .error { color: #ff5555; }
+        .success { color: #4fc3f7; }
+        .warning { color: #ffeb3b; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Fight Animation Compatibility Test</h3>
+        <div id="status">Loading...</div>
+        <div id="details"></div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+        let scene, camera, renderer, clock;
+        let mixamoCharacter, fightAnimCharacter;
+        let mixamoMixer, fightMixer;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2, 5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            scene.add(directionalLight);
+
+            clock = new THREE.Clock();
+
+            testCompatibility();
+            animate();
+        }
+
+        async function testCompatibility() {
+            const loader = new FBXLoader();
+
+            document.getElementById('status').innerHTML = '<span class="warning">Testing compatibility...</span>';
+            let details = '';
+
+            try {
+                // Load Mixamo character
+                details += '<h4>1. Loading Mixamo Character (Fast Run)...</h4>';
+                document.getElementById('details').innerHTML = details;
+
+                const mixamo = await new Promise((resolve, reject) => {
+                    loader.load('/Fast Run.fbx', resolve, undefined, reject);
+                });
+
+                mixamoCharacter = mixamo;
+                mixamoCharacter.scale.set(0.01, 0.01, 0.01);
+                mixamoCharacter.position.set(-1.5, 1.0, 0);
+                mixamoCharacter.rotation.y = Math.PI;
+
+                // Color it blue
+                mixamoCharacter.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material.color.setHex(0x4fc3f7);
+                    }
+                });
+
+                scene.add(mixamoCharacter);
+
+                // Analyze Mixamo skeleton
+                const mixamoBones = [];
+                mixamoCharacter.traverse((child) => {
+                    if (child.isBone) {
+                        mixamoBones.push(child.name);
+                    }
+                });
+
+                details += '<span class="success">✓ Mixamo loaded</span><br>';
+                details += `Bones: ${mixamoBones.length}<br>`;
+                details += `First 5 bones: ${mixamoBones.slice(0, 5).join(', ')}<br>`;
+
+                // Load fight animation FBX
+                details += '<br><h4>2. Loading Fight Animation...</h4>';
+                document.getElementById('details').innerHTML = details;
+
+                const fightAnim = await new Promise((resolve, reject) => {
+                    loader.load('/Users/paulbridges/Downloads/GunFu_Pistol_FBX_Only_v1/Paired_Pistol_StraightPunch_CounterKill_Att.fbx', resolve, undefined, reject);
+                });
+
+                fightAnimCharacter = fightAnim;
+                fightAnimCharacter.scale.set(0.01, 0.01, 0.01);
+                fightAnimCharacter.position.set(1.5, 1.0, 0);
+                fightAnimCharacter.rotation.y = Math.PI;
+
+                // Color it red
+                fightAnimCharacter.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material.color.setHex(0xef5350);
+                    }
+                });
+
+                scene.add(fightAnimCharacter);
+
+                // Analyze fight anim skeleton
+                const fightBones = [];
+                fightAnimCharacter.traverse((child) => {
+                    if (child.isBone) {
+                        fightBones.push(child.name);
+                    }
+                });
+
+                details += '<span class="success">✓ Fight anim loaded</span><br>';
+                details += `Bones: ${fightBones.length}<br>`;
+                details += `First 5 bones: ${fightBones.slice(0, 5).join(', ')}<br>`;
+
+                // Compare skeletons
+                details += '<br><h4>3. Compatibility Analysis</h4>';
+
+                const mixamoSet = new Set(mixamoBones);
+                const fightSet = new Set(fightBones);
+
+                const commonBones = mixamoBones.filter(b => fightSet.has(b));
+                const matchPercent = (commonBones.length / Math.min(mixamoBones.length, fightBones.length) * 100).toFixed(1);
+
+                details += `Common bones: ${commonBones.length}/${Math.min(mixamoBones.length, fightBones.length)} (${matchPercent}%)<br>`;
+
+                if (matchPercent > 80) {
+                    details += '<br><span class="success">✓✓✓ HIGH COMPATIBILITY!</span><br>';
+                    details += '<span class="success">The skeletons match well. Fight animations will work!</span><br>';
+                } else if (matchPercent > 50) {
+                    details += '<br><span class="warning">⚠ MODERATE COMPATIBILITY</span><br>';
+                    details += '<span class="warning">Some retargeting needed, but feasible.</span><br>';
+                } else {
+                    details += '<br><span class="error">✗ LOW COMPATIBILITY</span><br>';
+                    details += '<span class="error">Skeletons are very different. Will need significant work.</span><br>';
+                }
+
+                // Try to apply fight animation to Mixamo character
+                details += '<br><h4>4. Testing Animation Application...</h4>';
+                document.getElementById('details').innerHTML = details;
+
+                if (fightAnim.animations && fightAnim.animations.length > 0) {
+                    const fightClip = fightAnim.animations[0];
+
+                    details += `Fight clip duration: ${fightClip.duration.toFixed(2)}s<br>`;
+                    details += `Tracks: ${fightClip.tracks.length}<br>`;
+
+                    // Try to apply to Mixamo character
+                    try {
+                        mixamoMixer = new THREE.AnimationMixer(mixamoCharacter);
+                        const action = mixamoMixer.clipAction(fightClip);
+                        action.setLoop(THREE.LoopRepeat, Infinity);
+                        action.play();
+
+                        details += '<br><span class="success">✓ Animation applied to Mixamo character!</span><br>';
+                        details += '<span class="success">Watch the BLUE character on the left.</span><br>';
+                    } catch (e) {
+                        details += '<br><span class="error">✗ Failed to apply animation: ' + e.message + '</span><br>';
+                    }
+
+                    // Play original fight anim on fight character
+                    fightMixer = new THREE.AnimationMixer(fightAnimCharacter);
+                    const fightAction = fightMixer.clipAction(fightClip);
+                    fightAction.setLoop(THREE.LoopRepeat, Infinity);
+                    fightAction.play();
+
+                    details += '<span class="success">✓ Original fight anim playing on RED character (right)</span><br>';
+                }
+
+                document.getElementById('details').innerHTML = details;
+                document.getElementById('status').innerHTML = '<span class="success">✓ Test Complete - See Results Above</span>';
+
+            } catch (error) {
+                details += '<br><span class="error">✗ ERROR: ' + error.message + '</span>';
+                document.getElementById('details').innerHTML = details;
+                document.getElementById('status').innerHTML = '<span class="error">Test Failed</span>';
+                console.error(error);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            if (mixamoMixer) mixamoMixer.update(delta);
+            if (fightMixer) fightMixer.update(delta);
+
+            camera.lookAt(0, 1, 0);
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>

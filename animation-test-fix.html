@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Animation Test - Position Track Fix</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #4fc3f7;
+            font-family: monospace;
+            background: rgba(0,0,0,0.9);
+            padding: 15px;
+            font-size: 14px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div style="font-size: 18px; margin-bottom: 10px;">✓ POSITION TRACK REMOVED</div>
+        <div id="status">Loading...</div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+        let scene, camera, renderer, model, mixer, clock;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 6, 8);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            scene.add(directionalLight);
+
+            clock = new THREE.Clock();
+            loadCharacter();
+            animate();
+        }
+
+        function loadCharacter() {
+            const loader = new FBXLoader();
+            document.getElementById('status').textContent = 'Loading FBX...';
+
+            loader.load('Fast Run.fbx', (fbx) => {
+                model = fbx;
+                model.scale.set(0.01, 0.01, 0.01);
+                model.position.set(0, 0, 0);
+                model.rotation.y = Math.PI;
+
+                model.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => mat.color.setHex(0x4fc3f7));
+                        } else {
+                            child.material.color.setHex(0x4fc3f7);
+                        }
+                    }
+                });
+
+                scene.add(model);
+
+                if (fbx.animations && fbx.animations.length > 0) {
+                    const clip = fbx.animations[0];
+
+                    console.log('=== BEFORE FILTERING ===');
+                    console.log('Tracks:', clip.tracks.length);
+
+                    // RALPH'S FIX: Remove the position track that's causing the flash
+                    const originalTrackCount = clip.tracks.length;
+                    clip.tracks = clip.tracks.filter(track => {
+                        const trackName = track.name;
+
+                        // Remove ONLY the root Hips position track
+                        if (trackName === 'mixamorigHips.position') {
+                            console.log('❌ REMOVING: ' + trackName);
+                            return false; // Remove this track
+                        }
+
+                        return true; // Keep all other tracks
+                    });
+
+                    console.log('=== AFTER FILTERING ===');
+                    console.log('Removed:', originalTrackCount - clip.tracks.length, 'tracks');
+                    console.log('Kept:', clip.tracks.length, 'tracks');
+
+                    document.getElementById('status').textContent =
+                        `Removed problematic position track!\nKept ${clip.tracks.length} bone rotation tracks`;
+
+                    // Start animation
+                    mixer = new THREE.AnimationMixer(model);
+                    const action = mixer.clipAction(clip);
+                    action.setLoop(THREE.LoopRepeat, Infinity);
+                    action.play();
+
+                    console.log('✓ Animation playing WITHOUT position track');
+                }
+
+            }, undefined, (error) => {
+                console.error('Error:', error);
+                document.getElementById('status').textContent = 'ERROR: ' + error.message;
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>

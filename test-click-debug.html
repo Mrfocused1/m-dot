@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Click Debug Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+        }
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border: 2px solid #0f0;
+            z-index: 1000;
+            max-width: 500px;
+        }
+        .event {
+            margin: 5px 0;
+            padding: 5px;
+            background: rgba(0,255,0,0.1);
+        }
+        #testArea {
+            margin-top: 200px;
+            width: 100%;
+            height: 400px;
+            background: #222;
+            border: 3px solid #0f0;
+            position: relative;
+        }
+        .side {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            cursor: pointer;
+        }
+        .left {
+            left: 0;
+            background: rgba(255,0,0,0.2);
+        }
+        .right {
+            right: 0;
+            background: rgba(0,0,255,0.2);
+        }
+        .clicked {
+            background: rgba(0,255,0,0.5) !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">
+        <h2>🔍 CLICK EVENT DEBUGGER</h2>
+        <p>Instructions: Click the RED (left) and BLUE (right) areas below.</p>
+        <p>If you see "Click detected!" messages appear, your browser CAN detect clicks.</p>
+        <p>If nothing happens, your browser/system is blocking clicks.</p>
+        <hr>
+        <div id="events"></div>
+    </div>
+
+    <div id="testArea">
+        <div class="side left" id="leftSide">⬅️ LEFT</div>
+        <div class="side right" id="rightSide">RIGHT ➡️</div>
+    </div>
+
+    <script>
+        const eventsDiv = document.getElementById('events');
+        let eventCount = 0;
+
+        function logEvent(message, color = '#0f0') {
+            eventCount++;
+            const div = document.createElement('div');
+            div.className = 'event';
+            div.style.color = color;
+            div.textContent = `[${eventCount}] ${new Date().toLocaleTimeString()} - ${message}`;
+            eventsDiv.insertBefore(div, eventsDiv.firstChild);
+
+            // Keep only last 10 events
+            while (eventsDiv.children.length > 10) {
+                eventsDiv.removeChild(eventsDiv.lastChild);
+            }
+        }
+
+        // Test 1: Document-level events
+        document.addEventListener('mousedown', (e) => {
+            logEvent(`✅ DOCUMENT mousedown at (${e.clientX}, ${e.clientY})`, '#0ff');
+        });
+
+        document.addEventListener('click', (e) => {
+            logEvent(`✅ DOCUMENT click at (${e.clientX}, ${e.clientY})`, '#0ff');
+        });
+
+        // Test 2: Element-specific events
+        const leftSide = document.getElementById('leftSide');
+        const rightSide = document.getElementById('rightSide');
+
+        leftSide.addEventListener('mousedown', (e) => {
+            logEvent('🔴 LEFT SIDE mousedown', '#f00');
+            leftSide.classList.add('clicked');
+            setTimeout(() => leftSide.classList.remove('clicked'), 200);
+        });
+
+        leftSide.addEventListener('click', (e) => {
+            logEvent('🔴 LEFT SIDE click', '#f00');
+        });
+
+        rightSide.addEventListener('mousedown', (e) => {
+            logEvent('🔵 RIGHT SIDE mousedown', '#00f');
+            rightSide.classList.add('clicked');
+            setTimeout(() => rightSide.classList.remove('clicked'), 200);
+        });
+
+        rightSide.addEventListener('click', (e) => {
+            logEvent('🔵 RIGHT SIDE click', '#00f');
+        });
+
+        // Test 3: Touch events
+        leftSide.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            logEvent('👆 LEFT SIDE touchstart', '#f00');
+            leftSide.classList.add('clicked');
+            setTimeout(() => leftSide.classList.remove('clicked'), 200);
+        });
+
+        rightSide.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            logEvent('👆 RIGHT SIDE touchstart', '#00f');
+            rightSide.classList.add('clicked');
+            setTimeout(() => rightSide.classList.remove('clicked'), 200);
+        });
+
+        logEvent('🚀 Debug page loaded. Try clicking!', '#ff0');
+    </script>
+</body>
+</html>
