@@ -6,17 +6,771 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+// ============================================================================
+// ANIMATION VERSION SELECTOR SYSTEM
+// Based on Three.js AnimationAction research:
+// - https://threejs.org/docs/pages/AnimationAction.html
+// - https://github.com/mrdoob/three.js/issues/10912 (enabled/weight bug)
+// - https://github.com/mrdoob/three.js/issues/11147 (crossFade timeScale bug)
+// - https://discourse.threejs.org/t/animationmixer-not-animating/38793
+// ============================================================================
 
-// SHARED LOADER WITH PROGRESS TRACKING
+window.animationVersion = 1;
+
+// Version 1: Simple Direct Play - Just play() without any weight management
+window.setAnimV1 = () => {
+    window.animationVersion = 1;
+    console.log('%c Animation Version 1: Simple Direct Play', 'color: #4fc3f7; font-weight: bold');
+    console.log('Just call play() without any weight or state management');
+};
+
+// Version 2: Stop All Other Actions First - Explicitly stop all animations before playing
+window.setAnimV2 = () => {
+    window.animationVersion = 2;
+    console.log('%c Animation Version 2: Stop All Other Actions First', 'color: #4fc3f7; font-weight: bold');
+    console.log('Explicitly stop() all animations except target before playing');
+};
+
+// Version 3: Use Halt Instead of Stop - halt() gradually slows animation to stop
+window.setAnimV3 = () => {
+    window.animationVersion = 3;
+    console.log('%c Animation Version 3: Use Halt Instead of Stop', 'color: #4fc3f7; font-weight: bold');
+    console.log('Use halt(0) to completely disable an action immediately');
+};
+
+// Version 4: Weight-based Instant Switch - Set weights directly without transitions
+window.setAnimV4 = () => {
+    window.animationVersion = 4;
+    console.log('%c Animation Version 4: Weight-based Instant Switch', 'color: #4fc3f7; font-weight: bold');
+    console.log('Set target weight to 1, all others to 0 instantly (no stop/play)');
+};
+
+// Version 5: No Reset, Just Play - Don't call reset(), just play from current time
+window.setAnimV5 = () => {
+    window.animationVersion = 5;
+    console.log('%c Animation Version 5: No Reset, Just Play', 'color: #4fc3f7; font-weight: bold');
+    console.log('Skip reset(), just call play() to continue from current position');
+};
+
+// Version 6: Reset Time Separately - Set time=0 manually instead of reset()
+window.setAnimV6 = () => {
+    window.animationVersion = 6;
+    console.log('%c Animation Version 6: Reset Time Separately', 'color: #4fc3f7; font-weight: bold');
+    console.log('Manually set time=0 and enabled=true instead of calling reset()');
+};
+
+// Version 7: Disable Then Re-enable - Toggle enabled property
+window.setAnimV7 = () => {
+    window.animationVersion = 7;
+    console.log('%c Animation Version 7: Disable Then Re-enable', 'color: #4fc3f7; font-weight: bold');
+    console.log('Set enabled=false on all actions, then enabled=true on target');
+};
+
+// Version 8: Force Time Scale Every Frame - Ensure timeScale stays at 1
+window.setAnimV8 = () => {
+    window.animationVersion = 8;
+    console.log('%c Animation Version 8: Force Time Scale', 'color: #4fc3f7; font-weight: bold');
+    console.log('Explicitly set timeScale=1 on every call to ensure animation runs');
+};
+
+// Version 9: Manual Weight Update - Directly manage _effectiveWeight
+window.setAnimV9 = () => {
+    window.animationVersion = 9;
+    console.log('%c Animation Version 9: Manual Weight Update', 'color: #4fc3f7; font-weight: bold');
+    console.log('Bypass official API, directly set weight and call play');
+};
+
+// Version 10: Nuclear Reset - Stop mixer, recreate actions, start fresh
+window.setAnimV10 = () => {
+    window.animationVersion = 10;
+    console.log('%c Animation Version 10: Nuclear Reset', 'color: #4fc3f7; font-weight: bold');
+    console.log('Full mixer.stopAllAction() and complete action reset');
+};
+
+// ============================================================================
+// VERSIONS 11-20: DEEP DIAGNOSTIC APPROACHES
+// These target ROOT CAUSES not transition methods
+// ============================================================================
+
+// Version 11: Force Mixer Update in updateAnimation
+// Hypothesis: Mixer.update() not being called or delta=0
+window.setAnimV11 = () => {
+    window.animationVersion = 11;
+    console.log('%c Animation Version 11: Force Mixer Update', 'color: #ff9800; font-weight: bold');
+    console.log('Explicitly call mixer.update(0.016) in updateAnimation to ensure time advances');
+};
+
+// Version 12: Recreate Action Each Transition
+// Hypothesis: Cached actions become stale or corrupted
+window.setAnimV12 = () => {
+    window.animationVersion = 12;
+    console.log('%c Animation Version 12: Recreate Actions', 'color: #ff9800; font-weight: bold');
+    console.log('Create new clipAction() for every transition instead of reusing');
+};
+
+// Version 13: Validate and Log Animation Tracks
+// Hypothesis: Clips loaded from separate FBX files have mismatched bone names
+window.setAnimV13 = () => {
+    window.animationVersion = 13;
+    console.log('%c Animation Version 13: Track Validation', 'color: #ff9800; font-weight: bold');
+    console.log('Validate that animation tracks match model skeleton bones');
+};
+
+// Version 14: Force Action Activation State
+// Hypothesis: Actions are not being properly scheduled in the mixer
+window.setAnimV14 = () => {
+    window.animationVersion = 14;
+    console.log('%c Animation Version 14: Force Activation', 'color: #ff9800; font-weight: bold');
+    console.log('Use internal _mixer methods to force action activation');
+};
+
+// Version 15: Direct Mixer._actions Manipulation
+// Hypothesis: Actions array state is inconsistent
+window.setAnimV15 = () => {
+    window.animationVersion = 15;
+    console.log('%c Animation Version 15: Direct Mixer Access', 'color: #ff9800; font-weight: bold');
+    console.log('Directly inspect and manipulate mixer._actions array');
+};
+
+// Version 16: Clone Clips Before Use
+// Hypothesis: Shared clip references cause state corruption
+window.setAnimV16 = () => {
+    window.animationVersion = 16;
+    console.log('%c Animation Version 16: Clone Clips', 'color: #ff9800; font-weight: bold');
+    console.log('Clone animation clips to avoid shared state issues');
+};
+
+// Version 17: Bypass officerActions Object
+// Hypothesis: The officerActions object structure is causing issues
+window.setAnimV17 = () => {
+    window.animationVersion = 17;
+    console.log('%c Animation Version 17: Bypass officerActions', 'color: #ff9800; font-weight: bold');
+    console.log('Store actions in window.debugActions instead of officerActions');
+};
+
+// Version 18: Force Loop Mode Every Update
+// Hypothesis: Loop settings are being reset or overridden
+window.setAnimV18 = () => {
+    window.animationVersion = 18;
+    console.log('%c Animation Version 18: Force Loop Mode', 'color: #ff9800; font-weight: bold');
+    console.log('Reset loop mode to LoopRepeat on every update call');
+};
+
+// Version 19: Manual Skeleton Pose Update
+// Hypothesis: Animation system is working but skeleton is not updating
+window.setAnimV19 = () => {
+    window.animationVersion = 19;
+    console.log('%c Animation Version 19: Manual Skeleton', 'color: #ff9800; font-weight: bold');
+    console.log('Manually rotate bones if actions fail - proves skeleton works');
+};
+
+// Version 20: Exhaustive Debug Mode
+// Hypothesis: Need complete visibility into animation system state
+window.setAnimV20 = () => {
+    window.animationVersion = 20;
+    console.log('%c Animation Version 20: EXHAUSTIVE DEBUG', 'color: #ff0000; font-weight: bold');
+    console.log('Log EVERYTHING - mixer state, action state, clip state, bindings');
+};
+
+// Helper to show current version
+window.showAnimVersion = () => {
+    console.log(`Current animation version: ${window.animationVersion}`);
+    console.log('Available versions: setAnimV1() through setAnimV20()');
+    console.log('V1-V10: Transition method variations');
+    console.log('V11-V20: Deep diagnostic approaches');
+};
+
+// Diagnostic helper: Dump complete animation state
+window.dumpAnimState = () => {
+    console.log('%c === COMPLETE ANIMATION STATE DUMP ===', 'color: #ff0000; font-weight: bold; font-size: 16px');
+
+    // Check mixer
+    if (typeof shooterMixer === 'undefined' || !shooterMixer) {
+        console.error('❌ shooterMixer is undefined or null!');
+        return;
+    }
+
+    console.log('1. MIXER STATE:');
+    console.log('   - Time:', shooterMixer.time);
+    console.log('   - TimeScale:', shooterMixer.timeScale);
+    console.log('   - _actions count:', shooterMixer._actions ? shooterMixer._actions.length : 'undefined');
+    console.log('   - _bindings count:', shooterMixer._bindings ? shooterMixer._bindings.length : 'undefined');
+
+    console.log('\n2. OFFICER ACTIONS:');
+    if (typeof officerActions !== 'undefined') {
+        ['idle', 'run', 'shoot'].forEach(name => {
+            const action = officerActions[name];
+            if (action) {
+                console.log(`   ${name.toUpperCase()}:`, {
+                    enabled: action.enabled,
+                    paused: action.paused,
+                    time: action.time,
+                    timeScale: action.timeScale,
+                    weight: action.weight,
+                    effectiveWeight: action.getEffectiveWeight(),
+                    effectiveTimeScale: action.getEffectiveTimeScale(),
+                    clipDuration: action.getClip() ? action.getClip().duration : 'no clip',
+                    clipTracks: action.getClip() ? action.getClip().tracks.length : 'no clip',
+                    loop: action.loop,
+                    repetitions: action.repetitions
+                });
+            } else {
+                console.error(`   ❌ ${name} action is null/undefined!`);
+            }
+        });
+        console.log('   Current:', officerActions.current);
+    } else {
+        console.error('❌ officerActions is undefined!');
+    }
+
+    console.log('\n3. SHOOTER MODEL:');
+    if (typeof shooterModel !== 'undefined' && shooterModel) {
+        console.log('   - Position:', shooterModel.position);
+        console.log('   - Visible:', shooterModel.visible);
+        // Find skeleton
+        let skeleton = null;
+        shooterModel.traverse((child) => {
+            if (child.isSkinnedMesh && child.skeleton) {
+                skeleton = child.skeleton;
+            }
+        });
+        if (skeleton) {
+            console.log('   - Skeleton bones count:', skeleton.bones.length);
+            console.log('   - First 5 bone names:', skeleton.bones.slice(0, 5).map(b => b.name));
+        } else {
+            console.error('   ❌ No skeleton found in model!');
+        }
+    } else {
+        console.error('❌ shooterModel is undefined!');
+    }
+
+    console.log('\n4. MIXER INTERNAL STATE:');
+    if (shooterMixer._actions && shooterMixer._actions.length > 0) {
+        shooterMixer._actions.forEach((action, i) => {
+            console.log(`   Action[${i}]:`, {
+                clipName: action.getClip() ? action.getClip().name : 'no clip',
+                enabled: action.enabled,
+                weight: action.getEffectiveWeight()
+            });
+        });
+    }
+
+    console.log('%c === END DUMP ===', 'color: #ff0000; font-weight: bold');
+};
+
+// Watch bone positions to see if they're changing
+window.watchBones = () => {
+    if (!shooterModel) {
+        console.error('No shooterModel!');
+        return;
+    }
+
+    let legBone = null;
+    let hipsBone = null;
+
+    shooterModel.traverse((child) => {
+        if (child.isBone) {
+            if (child.name.toLowerCase().includes('leftupleg') || child.name === 'mixamorigLeftUpLeg') {
+                legBone = child;
+            }
+            if (child.name.toLowerCase().includes('hips') || child.name === 'mixamorigHips') {
+                hipsBone = child;
+            }
+        }
+    });
+
+    if (!legBone) {
+        console.error('Could not find leg bone to watch');
+        return;
+    }
+
+    console.log('%c Starting bone watch (5 seconds)...', 'color: #00ff00; font-weight: bold');
+    console.log('Watching bone:', legBone.name);
+
+    const startRotation = legBone.quaternion.clone();
+    let frameCount = 0;
+    let rotationChanged = false;
+
+    const watchInterval = setInterval(() => {
+        frameCount++;
+        const currentRotation = legBone.quaternion;
+
+        // Check if rotation has changed
+        if (!currentRotation.equals(startRotation)) {
+            rotationChanged = true;
+        }
+
+        if (frameCount % 30 === 0) { // Log every 0.5 seconds
+            console.log(`[Frame ${frameCount}] ${legBone.name} rotation:`, {
+                x: currentRotation.x.toFixed(4),
+                y: currentRotation.y.toFixed(4),
+                z: currentRotation.z.toFixed(4),
+                w: currentRotation.w.toFixed(4),
+                changed: rotationChanged
+            });
+        }
+
+        if (frameCount >= 300) { // 5 seconds at 60fps
+            clearInterval(watchInterval);
+            console.log('%c Bone watch complete', 'color: #00ff00; font-weight: bold');
+            console.log(rotationChanged
+                ? '✅ Bone rotation DID change - skeleton is being animated'
+                : '❌ Bone rotation did NOT change - animation not affecting skeleton!');
+        }
+    }, 1000 / 60);
+};
+
+// Force play the run animation with maximum verbosity
+window.forceRunAnim = () => {
+    console.log('%c FORCING RUN ANIMATION', 'color: #ff0000; font-weight: bold; font-size: 16px');
+
+    if (!shooterMixer) {
+        console.error('No shooter mixer!');
+        return;
+    }
+
+    if (!officerActions.run) {
+        console.error('No run action!');
+        return;
+    }
+
+    const runAction = officerActions.run;
+    const clip = runAction.getClip();
+
+    console.log('1. Clip info:', {
+        name: clip.name,
+        duration: clip.duration,
+        tracks: clip.tracks.length
+    });
+
+    // Log first few track names
+    console.log('2. First 5 tracks:');
+    clip.tracks.slice(0, 5).forEach((track, i) => {
+        console.log(`   Track[${i}]: ${track.name}`);
+    });
+
+    // Stop ALL actions
+    console.log('3. Stopping all actions...');
+    shooterMixer.stopAllAction();
+
+    // Configure run action
+    console.log('4. Configuring run action...');
+    runAction.reset();
+    runAction.time = 0;
+    runAction.enabled = true;
+    runAction.paused = false;
+    runAction.setEffectiveWeight(1);
+    runAction.setEffectiveTimeScale(1);
+    runAction.setLoop(THREE.LoopRepeat, Infinity);
+
+    console.log('5. Calling play()...');
+    runAction.play();
+
+    console.log('6. Final state:', {
+        isRunning: runAction.isRunning(),
+        isScheduled: runAction.isScheduled(),
+        weight: runAction.getEffectiveWeight(),
+        enabled: runAction.enabled
+    });
+
+    officerActions.current = 'run';
+
+    console.log('7. Starting bone watch to verify animation...');
+    window.watchBones();
+};
+
+// Test if the mixer update is actually being called
+window.testMixerUpdate = () => {
+    console.log('%c TESTING MIXER UPDATE', 'color: #ff9800; font-weight: bold');
+
+    if (!shooterMixer) {
+        console.error('No shooter mixer!');
+        return;
+    }
+
+    const startTime = shooterMixer.time;
+    console.log('Mixer time at start:', startTime);
+
+    // Wait a bit then check
+    setTimeout(() => {
+        const endTime = shooterMixer.time;
+        console.log('Mixer time after 1 second:', endTime);
+        console.log('Time advanced:', endTime - startTime);
+
+        if (endTime > startTime) {
+            console.log('✅ Mixer IS being updated (time advances)');
+        } else {
+            console.error('❌ Mixer is NOT being updated! (time not advancing)');
+        }
+    }, 1000);
+};
+
+// Check if animation tracks match skeleton bones
+window.checkTrackBinding = () => {
+    console.log('%c CHECKING TRACK BINDINGS', 'color: #ff9800; font-weight: bold');
+
+    if (!shooterModel || !officerActions.run) {
+        console.error('Missing model or run action!');
+        return;
+    }
+
+    // Get all bone names from model
+    const boneNames = new Set();
+    shooterModel.traverse((child) => {
+        if (child.isBone) {
+            boneNames.add(child.name);
+        }
+    });
+
+    console.log('Model bones:', boneNames.size);
+
+    // Get track bone names from animation
+    const clip = officerActions.run.getClip();
+    const trackBones = new Set();
+    const missingBones = [];
+
+    clip.tracks.forEach((track) => {
+        // Track name format: "boneName.property" (e.g., "mixamorigHips.quaternion")
+        const boneName = track.name.split('.')[0];
+        trackBones.add(boneName);
+
+        if (!boneNames.has(boneName)) {
+            missingBones.push(boneName);
+        }
+    });
+
+    console.log('Animation track bones:', trackBones.size);
+    console.log('Bones in both:', [...trackBones].filter(b => boneNames.has(b)).length);
+
+    if (missingBones.length > 0) {
+        console.error(`❌ ${missingBones.length} bones in animation NOT found in model:`);
+        console.error('Missing bones:', [...new Set(missingBones)]);
+    } else {
+        console.log('✅ All animation bones found in model skeleton');
+    }
+
+    // Check for binding issues in mixer
+    if (shooterMixer._bindingsByRootAndName) {
+        const rootBindings = shooterMixer._bindingsByRootAndName.get(shooterModel);
+        if (rootBindings) {
+            console.log('Mixer bindings for model:', rootBindings.size || Object.keys(rootBindings).length);
+        } else {
+            console.error('❌ No mixer bindings for shooterModel!');
+        }
+    }
+};
+
+console.log('%c Animation Fix Versions Loaded!', 'color: #4fc3f7; font-weight: bold; font-size: 14px');
+console.log('Test different approaches: setAnimV1() through setAnimV20()');
+console.log('Show current: showAnimVersion()');
+console.log('%c DIAGNOSTIC TOOLS:', 'color: #ff9800; font-weight: bold');
+console.log('  dumpAnimState() - Full state dump');
+console.log('  watchBones() - Watch if leg bones move');
+console.log('  forceRunAnim() - Force play run animation');
+console.log('  testMixerUpdate() - Verify mixer.update() is called');
+console.log('  checkTrackBinding() - Verify animation tracks match skeleton');
+
+// LOADING SCREEN SYSTEM
+const LoadingScreen = {
+    overlay: null,
+    isComplete: false,
+    startTime: 0,
+    minDisplayTime: 1500, // Minimum 1.5 seconds display time
+
+    init() {
+        this.startTime = Date.now();
+
+        // Create loading screen overlay
+        this.overlay = document.createElement('div');
+        this.overlay.id = 'loading-screen';
+        this.overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        `;
+        this.overlay.innerHTML = `
+            <div style="text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 30px; color: #4fc3f7;">GAP TAG</div>
+                <div style="width: 300px; height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin-bottom: 20px;">
+                    <div id="loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #4fc3f7, #667eea); transition: width 0.3s;"></div>
+                </div>
+                <div id="loading-text" style="font-size: 18px; color: #888;">Loading... 0%</div>
+            </div>
+        `;
+        document.body.appendChild(this.overlay);
+        console.log('Loading screen initialized');
+    },
+
+    updateProgress(percentage) {
+        const bar = document.getElementById('loading-bar');
+        const text = document.getElementById('loading-text');
+        if (bar) bar.style.width = percentage + '%';
+        if (text) text.textContent = `Loading... ${percentage}%`;
+        console.log(`Loading progress: ${percentage}%`);
+    },
+
+    complete() {
+        if (this.isComplete) return;
+        this.isComplete = true;
+
+        // Calculate how long we've been displaying
+        const elapsed = Date.now() - this.startTime;
+        const remainingTime = Math.max(0, this.minDisplayTime - elapsed);
+
+        console.log(`Loading complete. Elapsed: ${elapsed}ms, Remaining: ${remainingTime}ms`);
+
+        // Wait for minimum display time before fading out
+        setTimeout(() => {
+            // Fade out loading screen
+            this.overlay.style.transition = 'opacity 0.5s';
+            this.overlay.style.opacity = '0';
+
+            setTimeout(() => {
+                if (this.overlay && this.overlay.parentNode) {
+                    this.overlay.parentNode.removeChild(this.overlay);
+                }
+            }, 500);
+        }, remainingTime);
+    }
+};
+
+// STAGE 2 LOADING SCREEN (Level-specific)
+const Stage2LoadingScreen = {
+    overlay: null,
+    isComplete: false,
+    startTime: 0,
+    minDisplayTime: 1000, // Minimum 1 second display time
+
+    show() {
+        this.isComplete = false;
+        this.startTime = Date.now();
+
+        // Create loading screen overlay
+        this.overlay = document.createElement('div');
+        this.overlay.id = 'stage2-loading-screen';
+        this.overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        `;
+        this.overlay.innerHTML = `
+            <div style="text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 15px; color: #2196f3;">🚗 STAGE 2</div>
+                <div style="font-size: 20px; margin-bottom: 30px; color: #888;">Loading Tunnel...</div>
+                <div style="width: 300px; height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin-bottom: 20px;">
+                    <div id="stage2-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #2196f3, #1976d2); transition: width 0.3s;"></div>
+                </div>
+                <div id="stage2-loading-text" style="font-size: 18px; color: #888;">Loading... 0%</div>
+            </div>
+        `;
+        document.body.appendChild(this.overlay);
+        console.log('Stage 2 loading screen shown');
+    },
+
+    updateProgress(percentage) {
+        const bar = document.getElementById('stage2-loading-bar');
+        const text = document.getElementById('stage2-loading-text');
+        if (bar) bar.style.width = percentage + '%';
+        if (text) text.textContent = `Loading... ${percentage}%`;
+        console.log(`Stage 2 loading progress: ${percentage}%`);
+    },
+
+    complete() {
+        if (this.isComplete) return;
+        this.isComplete = true;
+
+        // Calculate how long we've been displaying
+        const elapsed = Date.now() - this.startTime;
+        const remainingTime = Math.max(0, this.minDisplayTime - elapsed);
+
+        console.log(`Stage 2 loading complete. Elapsed: ${elapsed}ms, Remaining: ${remainingTime}ms`);
+
+        // Wait for minimum display time before fading out
+        setTimeout(() => {
+            if (!this.overlay) return;
+
+            // Fade out loading screen
+            this.overlay.style.transition = 'opacity 0.5s';
+            this.overlay.style.opacity = '0';
+
+            setTimeout(() => {
+                if (this.overlay && this.overlay.parentNode) {
+                    this.overlay.parentNode.removeChild(this.overlay);
+                    this.overlay = null;
+                }
+            }, 500);
+        }, remainingTime);
+    }
+};
+
+// SHARED LOADER WITH PROGRESS TRACKING (Initial Load)
 const loadingManager = new THREE.LoadingManager();
+let assetsLoaded = false;
+
 loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
     const progress = Math.round((itemsLoaded / itemsTotal) * 100);
     console.log(`🔄 Loading: ${progress}% (${itemsLoaded}/${itemsTotal})`);
+    LoadingScreen.updateProgress(progress);
 };
 loadingManager.onLoad = () => {
     console.log('✅ All assets loaded!');
+    assetsLoaded = true;
+
+    // Complete loading screen after short delay
+    setTimeout(() => {
+        LoadingScreen.complete();
+
+        // Show start menu now that loading is complete
+        if (GameState.screen === 'START') {
+            UI.updateUI();
+        }
+    }, 300);
 };
 const sharedGLTFLoader = new GLTFLoader(loadingManager);
+const sharedFBXLoader = new FBXLoader(loadingManager);
+
+// STAGE 2 LOADER WITH SEPARATE PROGRESS TRACKING
+const stage2LoadingManager = new THREE.LoadingManager();
+let stage2AssetsLoaded = false;
+
+stage2LoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+    const progress = Math.round((itemsLoaded / itemsTotal) * 100);
+    console.log(`🔄 Stage 2 Loading: ${progress}% (${itemsLoaded}/${itemsTotal})`);
+    Stage2LoadingScreen.updateProgress(progress);
+};
+stage2LoadingManager.onLoad = () => {
+    console.log('✅ All Stage 2 assets loaded!');
+    stage2AssetsLoaded = true;
+
+    // Pre-warm shooting mechanics to avoid first-shot lag
+    setTimeout(() => {
+        warmupShootingMechanics();
+    }, 100);
+
+    // Complete Stage 2 loading screen
+    setTimeout(() => {
+        Stage2LoadingScreen.complete();
+
+        // Update UI now that Stage 2 is ready
+        if (GameState.selectedLevel === 'shoot') {
+            UI.updateUI();
+        }
+    }, 800); // Increased delay to allow warmup to complete
+};
+const stage2GLTFLoader = new GLTFLoader(stage2LoadingManager);
+const stage2FBXLoader = new FBXLoader(stage2LoadingManager);
+
+// Pre-warm shooting mechanics to prevent first-shot lag
+let isWarmingUp = false; // Flag to suppress shoot logs during warmup
+
+function warmupShootingMechanics() {
+    console.log('🔥 Warming up shooting mechanics...');
+    isWarmingUp = true;
+
+    // Wait for officer, gun, AND animations to be fully loaded
+    const checkReady = setInterval(() => {
+        if (!shooterModel || !muzzleFlash || !subMachineGun || !window.animationsReady) {
+            console.log('⏳ Waiting for officer, gun, and animations to load...');
+            return;
+        }
+
+        clearInterval(checkReady);
+
+        // Trigger shoot function multiple times to pre-compile shaders and initialize buffers
+        let warmupCount = 0;
+        const maxWarmups = 5;
+
+        const warmupInterval = setInterval(() => {
+            if (warmupCount >= maxWarmups) {
+                clearInterval(warmupInterval);
+
+                // Clean up all warmup objects after a brief delay
+                setTimeout(() => {
+                    cleanupWarmupObjects();
+                    isWarmingUp = false;
+
+                    // CRITICAL FIX: Reset animation to idle after warmup
+                    // Warmup shooting sets current to 'shoot', need to reset to idle
+                    if (officerActions.idle) {
+                        // Make sure idle is playing
+                        if (!officerActions.idle.isRunning()) {
+                            officerActions.idle.reset();
+                            officerActions.idle.play();
+                        }
+                        officerActions.current = 'idle';
+                        console.log('✅ Animation reset to idle after warmup (current:', officerActions.current, ')');
+                    }
+
+                    console.log('✅ Shooting mechanics warmed up - ready to play!');
+                }, 100);
+                return;
+            }
+
+            // Trigger shoot (this creates bullets, smoke, casings, muzzle flash)
+            if (MazeController && typeof MazeController.shoot === 'function') {
+                MazeController.shoot();
+                warmupCount++;
+            }
+        }, 100); // 100ms between each warmup shot
+    }, 50); // Check every 50ms
+}
+
+function cleanupWarmupObjects() {
+    // Remove all bullets created during warmup
+    bullets.forEach(bullet => {
+        if (bullet && bullet.parent) {
+            scene.remove(bullet);
+        }
+        // Dispose geometry and material to prevent memory leaks
+        if (bullet && bullet.geometry) bullet.geometry.dispose();
+        if (bullet && bullet.material) bullet.material.dispose();
+    });
+    bullets.length = 0;
+
+    // Remove all smoke particles created during warmup
+    smokeParticles.forEach(smoke => {
+        if (smoke && smoke.parent) {
+            scene.remove(smoke);
+        }
+        // Dispose geometry and material to prevent memory leaks
+        if (smoke && smoke.geometry) smoke.geometry.dispose();
+        if (smoke && smoke.material) smoke.material.dispose();
+    });
+    smokeParticles.length = 0;
+
+    // Remove all bullet casings created during warmup
+    bulletCasings.forEach(casing => {
+        if (casing && casing.parent) {
+            scene.remove(casing);
+        }
+        // Dispose geometry and material to prevent memory leaks
+        if (casing && casing.geometry) casing.geometry.dispose();
+        if (casing && casing.material) casing.material.dispose();
+    });
+    bulletCasings.length = 0;
+
+    console.log('🧹 Warmup objects cleaned up');
+}
 
 // Debug mode
 const DEBUG = true;
@@ -151,27 +905,93 @@ const Input = {
         e.preventDefault();
         e.stopPropagation();
         const touch = e.touches[0];
-        this.touchX = touch.clientX;
-        this.touchY = touch.clientY;
-        this.touchActive = true;
-        this.touchSide = this.touchX < window.innerWidth / 2 ? 'LEFT' : 'RIGHT';
-        console.log('Touch START on canvas: side=' + this.touchSide + ', x=' + this.touchX);
+        this.touchStartX = touch.clientX;
+        this.touchStartY = touch.clientY;
+        this.touchStartTime = Date.now();
+
+        console.log('Touch START at:', this.touchStartX, this.touchStartY);
     },
 
     handleTouchMove(e) {
         // Prevent scrolling/zooming while touching the game canvas
         e.preventDefault();
         e.stopPropagation();
+
+        if (!this.touchStartX) return;
+
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - this.touchStartX;
+        const deltaY = touch.clientY - this.touchStartY;
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        // Only process if moved at least 30px (prevents accidental swipes)
+        if (distance < 30) return;
+
+        // Determine swipe direction based on which delta is larger
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // Horizontal swipe
+            if (deltaX > 0) {
+                // Swipe RIGHT
+                if (!MazeController.keysPressed.right) {
+                    console.log('📱 Swipe RIGHT detected');
+                    MazeController.keysPressed.right = true;
+                    MazeController.keysPressed.left = false;
+                }
+            } else {
+                // Swipe LEFT
+                if (!MazeController.keysPressed.left) {
+                    console.log('📱 Swipe LEFT detected');
+                    MazeController.keysPressed.left = true;
+                    MazeController.keysPressed.right = false;
+                }
+            }
+        } else {
+            // Vertical swipe
+            if (deltaY > 0) {
+                // Swipe DOWN
+                if (!MazeController.keysPressed.down) {
+                    console.log('📱 Swipe DOWN detected');
+                    MazeController.keysPressed.down = true;
+                    MazeController.keysPressed.up = false;
+                }
+            } else {
+                // Swipe UP
+                if (!MazeController.keysPressed.up) {
+                    console.log('📱 Swipe UP detected');
+                    MazeController.keysPressed.up = true;
+                    MazeController.keysPressed.down = false;
+                }
+            }
+        }
     },
 
     handleTouchEnd(e) {
         e.preventDefault();
         e.stopPropagation();
-        // Don't immediately clear - let game loop process it first
-        setTimeout(() => {
-            this.touchActive = false;
-            this.touchSide = null;
-        }, 100);
+
+        const touchDuration = Date.now() - this.touchStartTime;
+        const touch = e.changedTouches[0];
+        const deltaX = Math.abs(touch.clientX - this.touchStartX);
+        const deltaY = Math.abs(touch.clientY - this.touchStartY);
+        const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        // TAP detection: short duration + minimal movement = tap to shoot
+        if (touchDuration < 200 && totalDistance < 20) {
+            console.log('📱 TAP detected - SHOOT!');
+            if (GameState.selectedLevel === 'shoot' && GameState.screen === 'PLAYING') {
+                MazeController.shoot();
+            }
+        }
+
+        // Clear all movement when touch ends
+        MazeController.keysPressed.up = false;
+        MazeController.keysPressed.down = false;
+        MazeController.keysPressed.left = false;
+        MazeController.keysPressed.right = false;
+
+        this.touchStartX = null;
+        this.touchStartY = null;
+        this.touchStartTime = 0;
     },
 
     handleMouseDown(e) {
@@ -182,6 +1002,14 @@ const Input = {
         e.stopPropagation();
 
         console.log('Mouse DOWN on canvas:', e.clientX, e.clientY);
+
+        // In shoot mode, clicking triggers shooting
+        if (GameState.selectedLevel === 'shoot' && GameState.screen === 'PLAYING') {
+            MazeController.shoot();
+            return;
+        }
+
+        // In chase mode, clicking changes lanes
         this.touchX = e.clientX;
         this.touchY = e.clientY;
         this.touchActive = true;
@@ -333,9 +1161,23 @@ const MazeController = {
     keysPressed: { up: false, down: false, left: false, right: false },
     manualRotation: null, // For manual direction control
 
+    // Shooting cooldown to prevent rapid fire causing freezes
+    lastShotTime: 0,
+    shootCooldown: 150, // Milliseconds between shots (150ms = ~6.7 shots per second)
+
+    // Animation state management
+    shootAnimTimeout: null, // Track the animation restoration timeout
+    pendingAnimation: 'idle', // Animation to return to after shooting
+
+    // Array size limits to prevent memory issues
+    MAX_BULLETS: 50,
+    MAX_SMOKE_PARTICLES: 100,
+    MAX_BULLET_CASINGS: 200,
+
     init() {
         this.velocity = { x: 0, z: 0 };
         this.manualRotation = null;
+        this.pendingAnimation = 'idle';
         console.log('Animation Controller initialized');
 
         // Add keyboard listeners
@@ -345,29 +1187,21 @@ const MazeController = {
 
     handleKeyDown(e) {
         // Prevent default browser behavior for game keys (especially spacebar which scrolls page)
-        if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)) {
+        if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
             e.preventDefault();
         }
 
         switch(e.key) {
             case 'ArrowUp':
-            case 'w':
-            case 'W':
                 this.keysPressed.up = true;
                 break;
             case 'ArrowDown':
-            case 's':
-            case 'S':
                 this.keysPressed.down = true;
                 break;
             case 'ArrowLeft':
-            case 'a':
-            case 'A':
                 this.keysPressed.left = true;
                 break;
             case 'ArrowRight':
-            case 'd':
-            case 'D':
                 this.keysPressed.right = true;
                 break;
             case ' ':
@@ -415,7 +1249,16 @@ const MazeController = {
     },
 
     shoot() {
-        console.log('BANG! Officer shooting...');
+        // Rate limiting - prevent shooting too fast which causes freezes
+        const now = Date.now();
+        if (!isWarmingUp && now - this.lastShotTime < this.shootCooldown) {
+            return; // Still in cooldown
+        }
+        this.lastShotTime = now;
+
+        if (!isWarmingUp) {
+            console.log('BANG! Officer shooting...');
+        }
 
         // Alternate flash color between yellow and white
         if (muzzleFlash) {
@@ -436,40 +1279,102 @@ const MazeController = {
             }, 50); // 50ms flash
         }
 
-        // Fire bullet projectile
+        // Fire bullet projectile (remove oldest if at limit)
+        if (bullets.length >= this.MAX_BULLETS) {
+            const oldBullet = bullets.shift(); // Remove oldest
+            scene.remove(oldBullet);
+            if (oldBullet.geometry) oldBullet.geometry.dispose();
+            if (oldBullet.material) oldBullet.material.dispose();
+        }
         this.fireBullet();
 
-        // Create smoke particles
+        // Create smoke particles (remove oldest if at limit)
+        if (smokeParticles.length >= this.MAX_SMOKE_PARTICLES) {
+            const oldSmoke = smokeParticles.shift(); // Remove oldest
+            scene.remove(oldSmoke);
+            if (oldSmoke.geometry) oldSmoke.geometry.dispose();
+            if (oldSmoke.material) oldSmoke.material.dispose();
+        }
         this.createSmokeEffect();
 
-        // Eject bullet casing
+        // Eject bullet casing (remove oldest if at limit)
+        if (bulletCasings.length >= this.MAX_BULLET_CASINGS) {
+            const oldCasing = bulletCasings.shift(); // Remove oldest
+            scene.remove(oldCasing);
+            if (oldCasing.geometry) oldCasing.geometry.dispose();
+            if (oldCasing.material) oldCasing.material.dispose();
+        }
         this.ejectBulletCasing();
 
         // Play shooting animation if available
         if (officerActions.shoot) {
-            // Play shoot animation once, then return to previous state
-            const previousAnim = officerActions.current;
-
-            if (officerActions[officerActions.current]) {
-                officerActions[officerActions.current].fadeOut(0.1);
+            // Clear any pending animation restoration timeout
+            if (this.shootAnimTimeout) {
+                clearTimeout(this.shootAnimTimeout);
+                this.shootAnimTimeout = null;
             }
 
-            officerActions.shoot.reset();
-            officerActions.shoot.setLoop(THREE.LoopOnce, 1);
-            officerActions.shoot.clampWhenFinished = true;
-            officerActions.shoot.fadeIn(0.1);
-            officerActions.shoot.play();
+            const shootAction = officerActions.shoot;
+            const currentAnim = officerActions.current;
+            const currentAction = officerActions[currentAnim];
+
+            // If already shooting, just reset the animation time to replay
+            if (currentAnim === 'shoot') {
+                shootAction.time = 0;
+                return; // Continue with current shoot animation
+            }
+
+            // CRITICAL: Properly set up shoot animation BEFORE crossfade
+            // This prevents T-pose by ensuring weight is 1 before transition
+            shootAction.reset();
+            shootAction.setEffectiveTimeScale(1);
+            shootAction.setEffectiveWeight(1);
+            shootAction.setLoop(THREE.LoopOnce, 1);
+            shootAction.clampWhenFinished = true;
+            shootAction.enabled = true;  // Ensure animation is enabled
+            shootAction.play();
+
+            // Crossfade from current animation to shoot
+            // Use false for warp to prevent timeScale corruption
+            if (currentAction) {
+                currentAction.crossFadeTo(shootAction, 0.1, false);
+            }
 
             officerActions.current = 'shoot';
 
-            // Return to previous animation after shoot completes
-            setTimeout(() => {
-                if (officerActions[previousAnim]) {
-                    officerActions.shoot.fadeOut(0.1);
-                    officerActions[previousAnim].reset().fadeIn(0.1).play();
-                    officerActions.current = previousAnim;
-                }
-            }, officerActions.shoot._clip.duration * 1000);
+            // Store what animation to return to based on current movement
+            const isMoving = this.keysPressed.up || this.keysPressed.down ||
+                             this.keysPressed.left || this.keysPressed.right;
+            this.pendingAnimation = isMoving ? 'run' : 'idle';
+
+            // Return to appropriate animation after shoot completes
+            const animDuration = shootAction._clip ? shootAction._clip.duration * 1000 : 300;
+            this.shootAnimTimeout = setTimeout(() => {
+                this.shootAnimTimeout = null;
+
+                // Only transition if still in shoot animation
+                if (officerActions.current !== 'shoot') return;
+
+                // Re-check movement state at the time of transition
+                const currentlyMoving = this.keysPressed.up || this.keysPressed.down ||
+                                        this.keysPressed.left || this.keysPressed.right;
+                const returnAnim = currentlyMoving ? 'run' : 'idle';
+
+                const returnAction = officerActions[returnAnim];
+                if (!returnAction) return;
+
+                // CRITICAL: Set up return animation properly BEFORE crossfade
+                returnAction.reset();
+                returnAction.setEffectiveTimeScale(1);
+                returnAction.setEffectiveWeight(1);
+                returnAction.enabled = true;  // Ensure animation is enabled
+                returnAction.play();
+
+                // Crossfade back to movement/idle animation
+                shootAction.crossFadeTo(returnAction, 0.15, false);
+
+                officerActions.current = returnAnim;
+            }, animDuration);
         }
     },
 
@@ -606,23 +1511,15 @@ const MazeController = {
     handleKeyUp(e) {
         switch(e.key) {
             case 'ArrowUp':
-            case 'w':
-            case 'W':
                 this.keysPressed.up = false;
                 break;
             case 'ArrowDown':
-            case 's':
-            case 'S':
                 this.keysPressed.down = false;
                 break;
             case 'ArrowLeft':
-            case 'a':
-            case 'A':
                 this.keysPressed.left = false;
                 break;
             case 'ArrowRight':
-            case 'd':
-            case 'D':
                 this.keysPressed.right = false;
                 break;
         }
@@ -637,11 +1534,18 @@ const MazeController = {
 
         // RALPH FIX: Tunnel now runs entrance (low Z) to exit (high Z)
         // So forward = positive Z (toward exit)
-        if (this.keysPressed.up) this.velocity.z += this.speed;  // W moves forward (positive Z - toward exit)
-        if (this.keysPressed.down) this.velocity.z -= this.speed; // S moves backward (negative Z - toward entrance)
-        // Fixed left/right controls (were inverted)
-        if (this.keysPressed.left) this.velocity.x += this.speed; // A moves left (positive X)
-        if (this.keysPressed.right) this.velocity.x -= this.speed; // D moves right (negative X)
+        if (this.keysPressed.up) {
+            this.velocity.z += this.speed;
+            if (!this._debugKeyLogged) {
+                console.log('[DEBUG] Arrow Up pressed, velocity.z:', this.velocity.z, 'speed:', this.speed);
+                this._debugKeyLogged = true;
+            }
+        } else if (this._debugKeyLogged) {
+            this._debugKeyLogged = false;
+        }
+        if (this.keysPressed.down) this.velocity.z -= this.speed;
+        if (this.keysPressed.left) this.velocity.x += this.speed;
+        if (this.keysPressed.right) this.velocity.x -= this.speed;
 
         // Normalize diagonal movement
         if (this.velocity.x !== 0 && this.velocity.z !== 0) {
@@ -704,23 +1608,779 @@ const MazeController = {
     },
 
     updateAnimation(isMoving) {
-        // Don't interrupt shooting animation
-        if (officerActions.current === 'shoot') return;
+        // CRITICAL FIX: Don't run until all animations are loaded
+        if (!window.animationsReady) {
+            return; // Wait for all animations to load
+        }
 
-        // Determine animation based on movement
         const targetAnim = isMoving ? 'run' : 'idle';
 
-        // Switch animations with smooth cross-fade
-        if (officerActions.current !== targetAnim && officerActions[targetAnim]) {
-            // Fade out current animation
-            if (officerActions[officerActions.current]) {
-                officerActions[officerActions.current].fadeOut(0.3);
-            }
-
-            // Fade in new animation
-            officerActions[targetAnim].reset().fadeIn(0.3).play();
-            officerActions.current = targetAnim;
+        // Debug logging when movement state changes
+        if (this._lastLoggedMoving !== isMoving) {
+            console.log(`[V${window.animationVersion}] Movement: ${isMoving}, Target: ${targetAnim}, Current: ${officerActions.current}`);
+            this._lastLoggedMoving = isMoving;
         }
+
+        // If shooting, store pending animation but don't switch
+        if (officerActions.current === 'shoot') {
+            this.pendingAnimation = targetAnim;
+            return;
+        }
+
+        // Skip if no change needed
+        if (officerActions.current === targetAnim) return;
+
+        const targetAction = officerActions[targetAnim];
+        const currentAction = officerActions[officerActions.current];
+
+        // Null check for target action
+        if (!targetAction) {
+            console.error(`[V${window.animationVersion}] Target action '${targetAnim}' is null!`);
+            return;
+        }
+
+        // ========================================================================
+        // 10 DIFFERENT ANIMATION FIX APPROACHES
+        // Based on Three.js documentation and community solutions
+        // ========================================================================
+        switch(window.animationVersion) {
+
+            // ----------------------------------------------------------------
+            // VERSION 1: Simple Direct Play
+            // Research: Most basic approach - just call play() and let Three.js handle it
+            // The play() method automatically enables the action and starts it
+            // Ref: https://threejs.org/docs/pages/AnimationAction.html
+            // ----------------------------------------------------------------
+            case 1:
+                console.log(`[V1] Simple Direct Play: ${targetAnim}`);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 2: Stop All Other Actions First
+            // Research: Sometimes animations conflict because multiple actions are playing
+            // Explicitly stop() all other animations to ensure clean state
+            // Note: stop() resets action state including time position
+            // Ref: https://github.com/mrdoob/three.js/issues/19328
+            // ----------------------------------------------------------------
+            case 2:
+                console.log(`[V2] Stop All Others First: ${targetAnim}`);
+                // Stop ALL animations except target
+                Object.keys(officerActions).forEach(key => {
+                    if (key !== 'current' && key !== targetAnim && officerActions[key]) {
+                        officerActions[key].stop();
+                    }
+                });
+                // Now play target
+                targetAction.reset();
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 3: Use Halt Instead of Stop
+            // Research: halt(time) gradually decelerates animation to stop
+            // With time=0, it stops immediately but differently than stop()
+            // halt() is designed to gracefully stop while stop() is more abrupt
+            // Ref: https://discoverthreejs.com/book/first-steps/animation-system/
+            // ----------------------------------------------------------------
+            case 3:
+                console.log(`[V3] Halt Then Play: ${targetAnim}`);
+                if (currentAction) {
+                    currentAction.halt(0);  // Immediate halt
+                }
+                targetAction.reset();
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 4: Weight-based Instant Switch (No Stop/Play)
+            // Research: The animation weight system determines influence
+            // Setting weight=0 makes an action have no effect
+            // Setting weight=1 makes it fully active
+            // Key insight: Action must be playing for weight to have effect!
+            // Ref: https://github.com/mrdoob/three.js/issues/6178
+            // ----------------------------------------------------------------
+            case 4:
+                console.log(`[V4] Weight Switch: ${targetAnim}`);
+                // Ensure all actions are playing (weights control visibility)
+                Object.keys(officerActions).forEach(key => {
+                    if (key !== 'current' && officerActions[key]) {
+                        const action = officerActions[key];
+                        if (key === targetAnim) {
+                            action.setEffectiveWeight(1);
+                            action.play();  // Must be playing for weight to work!
+                        } else {
+                            action.setEffectiveWeight(0);
+                        }
+                    }
+                });
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 5: No Reset, Just Play
+            // Research: reset() can cause issues by resetting internal state
+            // Sometimes you just want to continue from current position
+            // If action was paused, play() resumes; if stopped, starts from 0
+            // Ref: https://threejs.org/docs/#api/en/animation/AnimationAction.stop
+            // ----------------------------------------------------------------
+            case 5:
+                console.log(`[V5] No Reset, Just Play: ${targetAnim}`);
+                if (currentAction) {
+                    currentAction.stop();
+                }
+                // Skip reset() entirely - just configure and play
+                targetAction.enabled = true;
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 6: Reset Time Separately (Manual Time Control)
+            // Research: reset() does several things at once (time, weight, enabled, etc)
+            // Here we manually control just what we need
+            // Setting time=0 restarts the animation
+            // Ref: https://github.com/mrdoob/three.js/issues/19535
+            // ----------------------------------------------------------------
+            case 6:
+                console.log(`[V6] Manual Time Reset: ${targetAnim}`);
+                if (currentAction) {
+                    currentAction.enabled = false;
+                    currentAction.setEffectiveWeight(0);
+                }
+                // Manual time reset instead of reset() method
+                targetAction.time = 0;
+                targetAction.enabled = true;
+                targetAction.paused = false;
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 7: Disable Then Re-enable
+            // Research: The enabled property controls if action has any effect
+            // However, there's a known bug where enabled=false doesn't properly
+            // affect _effectiveWeight (GitHub issue #10912)
+            // This version explicitly handles both enabled AND weight
+            // Ref: https://github.com/mrdoob/three.js/issues/10912
+            // ----------------------------------------------------------------
+            case 7:
+                console.log(`[V7] Disable/Re-enable: ${targetAnim}`);
+                // Disable ALL actions first
+                Object.keys(officerActions).forEach(key => {
+                    if (key !== 'current' && officerActions[key]) {
+                        officerActions[key].enabled = false;
+                        officerActions[key].setEffectiveWeight(0);
+                    }
+                });
+                // Re-enable and configure target
+                targetAction.enabled = true;
+                targetAction.reset();
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 8: Force Time Scale Every Frame
+            // Research: timeScale can get corrupted by crossFade operations
+            // The crossFadeTo() method modifies timeScale and doesn't reset it
+            // Explicitly setting timeScale=1 ensures animation runs at normal speed
+            // Ref: https://github.com/mrdoob/three.js/issues/11147
+            // ----------------------------------------------------------------
+            case 8:
+                console.log(`[V8] Force TimeScale: ${targetAnim}`);
+                if (currentAction) {
+                    currentAction.stop();
+                    // Also reset its timeScale in case it was corrupted
+                    currentAction.setEffectiveTimeScale(1);
+                }
+                // Force ALL timeScales to 1 (in case of corruption)
+                targetAction.timeScale = 1;
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.reset();
+                targetAction.setEffectiveWeight(1);
+                targetAction.enabled = true;
+                targetAction.paused = false;
+                targetAction.play();
+                // Also ensure the mixer's timeScale is 1
+                if (shooterMixer) {
+                    shooterMixer.timeScale = 1;
+                }
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 9: Manual Weight Update (Bypass setEffectiveWeight)
+            // Research: The official setEffectiveWeight might not always work
+            // due to internal state issues. Direct property access might help.
+            // Also ensure the action is properly scheduled for playback.
+            // Ref: https://discourse.threejs.org/t/animation-weight-problem-threejs/59119
+            // ----------------------------------------------------------------
+            case 9:
+                console.log(`[V9] Manual Weight: ${targetAnim}`);
+                if (currentAction) {
+                    currentAction.weight = 0;
+                    currentAction.enabled = false;
+                    currentAction.stop();
+                }
+                // Direct property manipulation
+                targetAction.weight = 1;
+                targetAction.timeScale = 1;
+                targetAction.enabled = true;
+                targetAction.paused = false;
+                targetAction.time = 0;
+                // Force-sync effective values
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 10: Nuclear Reset (Complete Mixer Reset)
+            // Research: When all else fails, completely reset the mixer state
+            // stopAllAction() stops all actions controlled by the mixer
+            // Then recreate a clean state and restart target animation
+            // Warning: This is the most aggressive approach
+            // Ref: https://discourse.threejs.org/t/mixer-update-doest-not-start-update-animation/9327
+            // ----------------------------------------------------------------
+            case 10:
+                console.log(`[V10] Nuclear Reset: ${targetAnim}`);
+                if (shooterMixer) {
+                    // Stop everything on the mixer
+                    shooterMixer.stopAllAction();
+                    // Reset mixer time (fresh start)
+                    shooterMixer.setTime(0);
+                }
+                // Fully reconfigure the target action from scratch
+                targetAction.reset();
+                targetAction.time = 0;
+                targetAction.timeScale = 1;
+                targetAction.weight = 1;
+                targetAction.enabled = true;
+                targetAction.paused = false;
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.setLoop(THREE.LoopRepeat, Infinity);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ================================================================
+            // VERSIONS 11-20: DEEP DIAGNOSTIC APPROACHES
+            // These target ROOT CAUSES not just transition methods
+            // ================================================================
+
+            // ----------------------------------------------------------------
+            // VERSION 11: Force Mixer Update in updateAnimation
+            // Hypothesis: The mixer.update() call might not be receiving delta
+            // or might be getting 0. Force an update here to prove mixer works.
+            // ----------------------------------------------------------------
+            case 11:
+                console.log(`[V11] Force Mixer Update: ${targetAnim}`);
+                console.log('[V11] DIAGNOSTIC: Forcing mixer.update(0.016) directly');
+
+                // First, do a standard transition
+                if (currentAction) {
+                    currentAction.stop();
+                }
+                targetAction.reset();
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.enabled = true;
+                targetAction.play();
+
+                // Now FORCE the mixer to update right here
+                if (shooterMixer) {
+                    const preTime = shooterMixer.time;
+                    shooterMixer.update(0.016); // Force ~60fps frame
+                    const postTime = shooterMixer.time;
+                    console.log(`[V11] Mixer time: ${preTime.toFixed(4)} -> ${postTime.toFixed(4)}`);
+
+                    // Also log the action state AFTER update
+                    console.log(`[V11] Action time after update: ${targetAction.time.toFixed(4)}`);
+                }
+
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 12: Recreate Action Each Transition
+            // Hypothesis: Cached clipAction() returns stale action objects.
+            // clipAction() with same clip returns same action - maybe corrupted.
+            // ----------------------------------------------------------------
+            case 12:
+                console.log(`[V12] Recreate Action: ${targetAnim}`);
+
+                // Get the clip from current action
+                const clip12 = targetAction.getClip();
+                if (!clip12) {
+                    console.error('[V12] Target action has no clip!');
+                    break;
+                }
+
+                console.log(`[V12] Creating FRESH action from clip: ${clip12.name}`);
+
+                // Stop and uncache the old action
+                targetAction.stop();
+                shooterMixer.uncacheAction(clip12);
+
+                // Create a brand new action
+                const freshAction = shooterMixer.clipAction(clip12);
+                freshAction.setLoop(THREE.LoopRepeat, Infinity);
+                freshAction.reset();
+                freshAction.setEffectiveWeight(1);
+                freshAction.setEffectiveTimeScale(1);
+                freshAction.enabled = true;
+                freshAction.play();
+
+                // Update the reference
+                officerActions[targetAnim] = freshAction;
+                officerActions.current = targetAnim;
+
+                console.log(`[V12] New action created, isRunning: ${freshAction.isRunning()}`);
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 13: Validate Animation Tracks Match Skeleton
+            // Hypothesis: FBX animations from separate files have different
+            // bone names than the Officer.fbx model skeleton.
+            // ----------------------------------------------------------------
+            case 13:
+                console.log(`[V13] Track Validation: ${targetAnim}`);
+
+                // Get skeleton bone names from model
+                let skeletonBones13 = [];
+                if (shooterModel) {
+                    shooterModel.traverse((child) => {
+                        if (child.isSkinnedMesh && child.skeleton) {
+                            skeletonBones13 = child.skeleton.bones.map(b => b.name);
+                        }
+                    });
+                }
+
+                console.log(`[V13] Model has ${skeletonBones13.length} bones`);
+                console.log(`[V13] First 10 bones:`, skeletonBones13.slice(0, 10));
+
+                // Get track names from animation clip
+                const clip13 = targetAction.getClip();
+                if (clip13) {
+                    const trackNames = clip13.tracks.map(t => {
+                        // Track names are like "boneName.quaternion" or "boneName.position"
+                        return t.name.split('.')[0];
+                    });
+                    const uniqueTrackBones = [...new Set(trackNames)];
+
+                    console.log(`[V13] Clip has ${clip13.tracks.length} tracks`);
+                    console.log(`[V13] Unique bones in tracks:`, uniqueTrackBones.slice(0, 10));
+
+                    // Check for mismatches
+                    const missingBones = uniqueTrackBones.filter(tb => !skeletonBones13.includes(tb));
+                    if (missingBones.length > 0) {
+                        console.error(`[V13] ❌ MISMATCH! Animation tracks reference ${missingBones.length} bones not in skeleton:`);
+                        console.error(`[V13] Missing:`, missingBones.slice(0, 10));
+                    } else {
+                        console.log(`[V13] ✅ All animation bones found in skeleton`);
+                    }
+                }
+
+                // Still try to play
+                if (currentAction) currentAction.stop();
+                targetAction.reset();
+                targetAction.setEffectiveWeight(1);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 14: Force Action Activation State
+            // Hypothesis: Action is not being scheduled by the mixer properly.
+            // Use getMixer() to verify and _activate() to force.
+            // ----------------------------------------------------------------
+            case 14:
+                console.log(`[V14] Force Activation: ${targetAnim}`);
+
+                // Check if action is bound to our mixer
+                const actionMixer = targetAction.getMixer();
+                if (actionMixer !== shooterMixer) {
+                    console.error('[V14] ❌ Action mixer mismatch!');
+                    console.log('[V14] Action mixer:', actionMixer);
+                    console.log('[V14] Expected mixer:', shooterMixer);
+                }
+
+                // Check if action is in the mixer's actions list
+                const inActions = shooterMixer._actions.includes(targetAction);
+                console.log(`[V14] Action in mixer._actions: ${inActions}`);
+
+                // Stop current
+                if (currentAction) {
+                    currentAction.stop();
+                }
+
+                // Configure target
+                targetAction.reset();
+                targetAction.enabled = true;
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.play();
+
+                // Check isScheduled (internal state)
+                console.log(`[V14] Action isRunning: ${targetAction.isRunning()}`);
+                console.log(`[V14] Action isScheduled: ${targetAction.isScheduled()}`);
+
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 15: Direct Mixer._actions Manipulation
+            // Hypothesis: The internal actions array has stale/corrupt entries.
+            // Log complete state and try to understand what mixer sees.
+            // ----------------------------------------------------------------
+            case 15:
+                console.log(`[V15] Direct Mixer Access: ${targetAnim}`);
+
+                console.log('[V15] === MIXER INTERNAL STATE ===');
+                console.log(`[V15] _actions count: ${shooterMixer._actions.length}`);
+                console.log(`[V15] _nActiveActions: ${shooterMixer._nActiveActions}`);
+
+                // Log all actions in the mixer
+                shooterMixer._actions.forEach((action, i) => {
+                    const actionClip = action.getClip();
+                    console.log(`[V15] Action[${i}]: clip="${actionClip ? actionClip.name : 'null'}", enabled=${action.enabled}, weight=${action.getEffectiveWeight().toFixed(3)}, running=${action.isRunning()}`);
+                });
+
+                // Force all weights to 0 except target
+                shooterMixer._actions.forEach((action) => {
+                    if (action === targetAction) {
+                        action.enabled = true;
+                        action.setEffectiveWeight(1);
+                        action.timeScale = 1;
+                        action.reset();
+                        action.play();
+                    } else {
+                        action.enabled = false;
+                        action.setEffectiveWeight(0);
+                    }
+                });
+
+                console.log(`[V15] After manipulation: target weight=${targetAction.getEffectiveWeight()}`);
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 16: Clone Clips Before Use
+            // Hypothesis: Using same clip reference causes state sharing issues.
+            // Clone the clip to get an independent instance.
+            // ----------------------------------------------------------------
+            case 16:
+                console.log(`[V16] Clone Clips: ${targetAnim}`);
+
+                const originalClip16 = targetAction.getClip();
+                if (!originalClip16) {
+                    console.error('[V16] No clip found!');
+                    break;
+                }
+
+                // Clone the clip
+                const clonedClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(originalClip16));
+                clonedClip.name = originalClip16.name + '_clone_' + Date.now();
+
+                console.log(`[V16] Cloned clip: ${clonedClip.name}`);
+                console.log(`[V16] Tracks: ${clonedClip.tracks.length}, Duration: ${clonedClip.duration}`);
+
+                // Create action from cloned clip
+                const clonedAction = shooterMixer.clipAction(clonedClip);
+                clonedAction.setLoop(THREE.LoopRepeat, Infinity);
+                clonedAction.reset();
+                clonedAction.setEffectiveWeight(1);
+                clonedAction.setEffectiveTimeScale(1);
+                clonedAction.enabled = true;
+                clonedAction.play();
+
+                // Stop current
+                if (currentAction) currentAction.stop();
+
+                officerActions.current = targetAnim;
+                console.log(`[V16] Cloned action isRunning: ${clonedAction.isRunning()}`);
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 17: Bypass officerActions Object
+            // Hypothesis: The officerActions object structure causes issues.
+            // Store directly in window for independent reference.
+            // ----------------------------------------------------------------
+            case 17:
+                console.log(`[V17] Bypass officerActions: ${targetAnim}`);
+
+                // Initialize debug storage
+                if (!window.debugActions) {
+                    window.debugActions = {};
+                    console.log('[V17] Created window.debugActions storage');
+                }
+
+                // Copy action to window
+                window.debugActions[targetAnim] = targetAction;
+                const debugAction = window.debugActions[targetAnim];
+
+                console.log(`[V17] Action reference check: same object? ${debugAction === targetAction}`);
+
+                // Stop current via window reference if exists
+                if (window.debugActions.current && window.debugActions[window.debugActions.current]) {
+                    window.debugActions[window.debugActions.current].stop();
+                }
+
+                // Play via window reference
+                debugAction.reset();
+                debugAction.setEffectiveWeight(1);
+                debugAction.setEffectiveTimeScale(1);
+                debugAction.enabled = true;
+                debugAction.play();
+
+                window.debugActions.current = targetAnim;
+                officerActions.current = targetAnim;
+
+                console.log(`[V17] Debug action isRunning: ${debugAction.isRunning()}`);
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 18: Force Loop Mode Every Update
+            // Hypothesis: Loop settings are being overridden elsewhere.
+            // Set loop mode aggressively on every call.
+            // ----------------------------------------------------------------
+            case 18:
+                console.log(`[V18] Force Loop Mode: ${targetAnim}`);
+
+                // Log current loop state
+                console.log(`[V18] Before - loop: ${targetAction.loop}, repetitions: ${targetAction.repetitions}`);
+
+                // Stop current
+                if (currentAction) currentAction.stop();
+
+                // Set ALL loop-related properties
+                targetAction.setLoop(THREE.LoopRepeat, Infinity);
+                targetAction.loop = THREE.LoopRepeat;
+                targetAction.repetitions = Infinity;
+                targetAction.clampWhenFinished = false;
+
+                // Configure and play
+                targetAction.reset();
+                targetAction.time = 0;
+                targetAction.enabled = true;
+                targetAction.paused = false;
+                targetAction.setEffectiveWeight(1);
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.play();
+
+                // Log after
+                console.log(`[V18] After - loop: ${targetAction.loop}, repetitions: ${targetAction.repetitions}`);
+                console.log(`[V18] LoopRepeat constant: ${THREE.LoopRepeat}`);
+
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 19: Manual Skeleton Pose Update
+            // Hypothesis: Animation mixer works but skeleton doesn't update.
+            // Manually rotate a visible bone to prove skeleton can change.
+            // ----------------------------------------------------------------
+            case 19:
+                console.log(`[V19] Manual Skeleton Pose: ${targetAnim}`);
+
+                // Find skeleton and bones
+                let skeleton19 = null;
+                let rightArm = null;
+                let spine = null;
+
+                if (shooterModel) {
+                    shooterModel.traverse((child) => {
+                        if (child.isSkinnedMesh && child.skeleton) {
+                            skeleton19 = child.skeleton;
+                        }
+                        // Look for arm bone to manipulate
+                        if (child.isBone) {
+                            if (child.name.toLowerCase().includes('rightarm') ||
+                                child.name.toLowerCase().includes('right_arm') ||
+                                child.name === 'mixamorigRightArm') {
+                                rightArm = child;
+                            }
+                            if (child.name.toLowerCase().includes('spine')) {
+                                spine = child;
+                            }
+                        }
+                    });
+                }
+
+                if (skeleton19) {
+                    console.log(`[V19] Found skeleton with ${skeleton19.bones.length} bones`);
+                }
+
+                if (rightArm) {
+                    console.log(`[V19] Found right arm bone: ${rightArm.name}`);
+                    console.log(`[V19] Current rotation:`, rightArm.rotation);
+
+                    // Manually rotate the arm to prove skeleton works
+                    // This should cause a visible change if skeleton is functional
+                    const testRotation = (Date.now() / 1000) % (Math.PI * 2);
+                    rightArm.rotation.z = testRotation;
+                    console.log(`[V19] SET rotation.z to ${testRotation.toFixed(3)}`);
+                } else {
+                    console.warn('[V19] Could not find right arm bone');
+                    if (spine) {
+                        console.log(`[V19] Trying spine: ${spine.name}`);
+                        spine.rotation.y = Math.sin(Date.now() / 500) * 0.5;
+                    }
+                }
+
+                // Also try normal animation play
+                if (currentAction) currentAction.stop();
+                targetAction.reset();
+                targetAction.setEffectiveWeight(1);
+                targetAction.play();
+                officerActions.current = targetAnim;
+                break;
+
+            // ----------------------------------------------------------------
+            // VERSION 20: Exhaustive Debug Mode
+            // Hypothesis: We need to see EVERYTHING to find the root cause.
+            // Log absolutely everything about the animation system.
+            // ----------------------------------------------------------------
+            case 20:
+                console.log('%c[V20] EXHAUSTIVE DEBUG MODE', 'color: #ff0000; font-weight: bold; font-size: 14px');
+
+                console.log('=== 1. TRANSITION DETAILS ===');
+                console.log(`Target: ${targetAnim}`);
+                console.log(`Current: ${officerActions.current}`);
+                console.log(`Target action exists: ${!!targetAction}`);
+                console.log(`Current action exists: ${!!currentAction}`);
+
+                console.log('\n=== 2. TARGET ACTION STATE ===');
+                if (targetAction) {
+                    const clip20 = targetAction.getClip();
+                    console.log('Clip name:', clip20 ? clip20.name : 'NULL');
+                    console.log('Clip duration:', clip20 ? clip20.duration : 'N/A');
+                    console.log('Clip tracks:', clip20 ? clip20.tracks.length : 'N/A');
+                    console.log('Action enabled:', targetAction.enabled);
+                    console.log('Action paused:', targetAction.paused);
+                    console.log('Action time:', targetAction.time);
+                    console.log('Action timeScale:', targetAction.timeScale);
+                    console.log('Action weight:', targetAction.weight);
+                    console.log('Effective weight:', targetAction.getEffectiveWeight());
+                    console.log('Effective timeScale:', targetAction.getEffectiveTimeScale());
+                    console.log('Loop mode:', targetAction.loop, '(LoopRepeat=', THREE.LoopRepeat, ')');
+                    console.log('Is running:', targetAction.isRunning());
+                    console.log('Is scheduled:', targetAction.isScheduled());
+                }
+
+                console.log('\n=== 3. MIXER STATE ===');
+                if (shooterMixer) {
+                    console.log('Mixer exists: YES');
+                    console.log('Mixer time:', shooterMixer.time);
+                    console.log('Mixer timeScale:', shooterMixer.timeScale);
+                    console.log('_actions count:', shooterMixer._actions.length);
+                    console.log('_nActiveActions:', shooterMixer._nActiveActions);
+                    console.log('_bindings:', shooterMixer._bindings ? shooterMixer._bindings.length : 'undefined');
+                    console.log('_bindingsByRootAndName:', shooterMixer._bindingsByRootAndName ? Object.keys(shooterMixer._bindingsByRootAndName).length : 'undefined');
+                } else {
+                    console.error('Mixer exists: NO!!!');
+                }
+
+                console.log('\n=== 4. ALL ACTIONS STATE ===');
+                ['idle', 'run', 'shoot'].forEach(name => {
+                    const act = officerActions[name];
+                    if (act) {
+                        console.log(`${name.toUpperCase()}: enabled=${act.enabled}, weight=${act.getEffectiveWeight().toFixed(3)}, time=${act.time.toFixed(3)}, running=${act.isRunning()}`);
+                    } else {
+                        console.error(`${name.toUpperCase()}: NULL!`);
+                    }
+                });
+
+                console.log('\n=== 5. MODEL STATE ===');
+                if (shooterModel) {
+                    console.log('Model exists: YES');
+                    console.log('Model visible:', shooterModel.visible);
+                    console.log('Model position:', shooterModel.position.x.toFixed(2), shooterModel.position.y.toFixed(2), shooterModel.position.z.toFixed(2));
+
+                    let meshCount = 0;
+                    let skinnedMeshCount = 0;
+                    let boneCount = 0;
+                    shooterModel.traverse((child) => {
+                        if (child.isMesh) meshCount++;
+                        if (child.isSkinnedMesh) skinnedMeshCount++;
+                        if (child.isBone) boneCount++;
+                    });
+                    console.log('Meshes:', meshCount);
+                    console.log('SkinnedMeshes:', skinnedMeshCount);
+                    console.log('Bones:', boneCount);
+                } else {
+                    console.error('Model exists: NO!!!');
+                }
+
+                console.log('\n=== 6. PERFORMING TRANSITION ===');
+
+                // Do the transition with logging
+                if (currentAction) {
+                    console.log('Stopping current action...');
+                    currentAction.stop();
+                }
+
+                console.log('Resetting target action...');
+                targetAction.reset();
+
+                console.log('Setting weight to 1...');
+                targetAction.setEffectiveWeight(1);
+
+                console.log('Setting timeScale to 1...');
+                targetAction.setEffectiveTimeScale(1);
+
+                console.log('Setting enabled to true...');
+                targetAction.enabled = true;
+
+                console.log('Calling play()...');
+                targetAction.play();
+
+                console.log('\n=== 7. POST-TRANSITION STATE ===');
+                console.log('Target now running:', targetAction.isRunning());
+                console.log('Target now scheduled:', targetAction.isScheduled());
+                console.log('Target weight:', targetAction.getEffectiveWeight());
+                console.log('Target time:', targetAction.time);
+
+                officerActions.current = targetAnim;
+                console.log('%c=== DEBUG COMPLETE ===', 'color: #ff0000; font-weight: bold');
+                break;
+
+            // ----------------------------------------------------------------
+            // DEFAULT: Original implementation as fallback
+            // ----------------------------------------------------------------
+            default:
+                console.log(`[Default] Original Implementation: ${targetAnim}`);
+                if (currentAction) {
+                    currentAction.stop();
+                }
+                targetAction.reset();
+                targetAction.setEffectiveTimeScale(1);
+                targetAction.setEffectiveWeight(1);
+                targetAction.enabled = true;
+                targetAction.play();
+                officerActions.current = targetAnim;
+        }
+
+        // Log final state for debugging
+        console.log(`[V${window.animationVersion}] Switched to ${targetAnim}:`, {
+            weight: targetAction.getEffectiveWeight(),
+            timeScale: targetAction.getEffectiveTimeScale(),
+            enabled: targetAction.enabled,
+            paused: targetAction.paused,
+            time: targetAction.time.toFixed(3)
+        });
     }
 };
 
@@ -971,7 +2631,7 @@ const EnvironmentManager = {
 // ============================================================================
 
 function loadPlayerCharacter() {
-    const loader = new FBXLoader();
+    const loader = sharedFBXLoader;
 
     loader.load('Fast Run.fbx', (fbx) => {
         playerModel = fbx;
@@ -1075,7 +2735,7 @@ function createFallbackPlayer() {
 }
 
 function loadEnemyCharacter() {
-    const loader = new FBXLoader();
+    const loader = sharedFBXLoader;
 
     loader.load('Fast Run.fbx', (fbx) => {
         enemyModel = fbx;
@@ -1286,7 +2946,7 @@ function loadSubMachineGun() {
         return;
     }
 
-    const loader = sharedGLTFLoader;
+    const loader = stage2GLTFLoader;
 
     console.log('Loading M4A1 rifle...');
 
@@ -1373,7 +3033,7 @@ function loadSubMachineGun() {
 }
 
 function loadOfficerCharacter() {
-    const loader = new FBXLoader();
+    const loader = stage2FBXLoader;
 
     console.log('Loading Officer character for Maze mode...');
 
@@ -1432,6 +3092,9 @@ function loadOfficerCharacter() {
         function checkAllAnimationsLoaded() {
             animationsLoaded++;
             if (animationsLoaded === totalAnimations) {
+                // CRITICAL: Set flag that animations are ready
+                window.animationsReady = true;
+
                 // Start with idle animation
                 if (officerActions.idle) {
                     officerActions.idle.play();
@@ -1440,7 +3103,7 @@ function loadOfficerCharacter() {
 
                 // Initialize maze controller
                 MazeController.init();
-                console.log('Officer ready with animations!');
+                console.log('✅ Officer ready with animations! All 3 loaded.');
             }
         }
 
@@ -1458,8 +3121,16 @@ function loadOfficerCharacter() {
                 // Create action
                 officerActions.run = shooterMixer.clipAction(clip);
                 officerActions.run.setLoop(THREE.LoopRepeat, Infinity);
+                // Initialize with weight 0 (inactive until needed)
+                officerActions.run.setEffectiveWeight(0);
+                officerActions.run.setEffectiveTimeScale(1);
 
-                console.log('Run animation loaded');
+                console.log('✅ Run animation loaded and initialized:', {
+                    clip: clip.name,
+                    duration: clip.duration,
+                    weight: officerActions.run.getEffectiveWeight(),
+                    timeScale: officerActions.run.getEffectiveTimeScale()
+                });
             }
             checkAllAnimationsLoaded();
         }, undefined, (error) => {
@@ -1481,6 +3152,9 @@ function loadOfficerCharacter() {
                 // Create action
                 officerActions.idle = shooterMixer.clipAction(clip);
                 officerActions.idle.setLoop(THREE.LoopRepeat, Infinity);
+                // Idle starts active, others start inactive
+                officerActions.idle.setEffectiveWeight(1);
+                officerActions.idle.setEffectiveTimeScale(1);
 
                 console.log('Idle animation loaded');
             }
@@ -1491,7 +3165,7 @@ function loadOfficerCharacter() {
         });
 
         // Load Shooting animation
-        loader.load('Rifle Shooting.fbx', (animFbx) => {
+        loader.load('Firing Rifle.fbx', (animFbx) => {
             if (animFbx.animations && animFbx.animations.length > 0) {
                 const clip = animFbx.animations[0];
 
@@ -1505,12 +3179,15 @@ function loadOfficerCharacter() {
                 officerActions.shoot = shooterMixer.clipAction(clip);
                 officerActions.shoot.setLoop(THREE.LoopOnce, 1);
                 officerActions.shoot.clampWhenFinished = true;
+                // Initialize inactive
+                officerActions.shoot.setEffectiveWeight(0);
+                officerActions.shoot.setEffectiveTimeScale(1);
 
                 console.log('Shoot animation loaded');
             }
             checkAllAnimationsLoaded();
         }, undefined, (error) => {
-            console.error('Error loading Rifle Shooting:', error);
+            console.error('Error loading Firing Rifle:', error);
             checkAllAnimationsLoaded();
         });
 
@@ -1586,7 +3263,7 @@ function loadUrbanEnvironment() {
     // Setup atmospheric lighting first
     setupUrbanLighting();
 
-    const loader = sharedGLTFLoader;
+    const loader = stage2GLTFLoader;
 
     loader.load(
         'tunnel-road.glb',
@@ -1880,9 +3557,11 @@ function loadPorscheCar() {
             const carWidth = 2.7;    // 1.8m * 1.5 scale
             const carHeight = 2.0;   // 1.3m * 1.5 scale
 
+            // FIX: Collision box position must match visual car position
+            // Car is at X: -43, Z: -210, so collider must be at the same position
             addCollider(
-                -35,              // X position (left lane)
-                -210,             // Z position
+                -43,              // X position (matches porscheCar.position.x)
+                -210,             // Z position (matches porscheCar.position.z)
                 carWidth,         // Width (perpendicular to Z)
                 carLength,        // Depth (along Z axis)
                 carHeight,        // Height
@@ -1890,7 +3569,7 @@ function loadPorscheCar() {
                 0                 // Rotation (facing forward)
             );
 
-            console.log('✅ Porsche 911 loaded at X: -35, Z: -210 with collision');
+            console.log('✅ Porsche 911 loaded at X: -43, Z: -210 with collision (FIX: collider now matches visual position)');
         },
         // onProgress
         (xhr) => {
@@ -2134,13 +3813,14 @@ function loadBMW_V1_ScaleInvestigation() {
             }
         });
 
-        // Add collision
-        addCollider(-35, -160, 2.87, 7.29, 2.1, 'BMW M8 Coupe', 0);
+        // FIX: Collision box position must match visual car position
+        // Car is at X: -28, Z: -167, so collider must be at the same position
+        addCollider(-28, -167, 2.87, 7.29, 2.1, 'BMW M8 Coupe', 0);
 
         // Add hazard lights
         addHazardLightsToCar(bmwM8Car, 'BMW M8 Coupe');
 
-        console.log('✅ BMW M8 loaded at X: -35, Y: 0.1, Z: -160 with scale 1.5x');
+        console.log('✅ BMW M8 loaded at X: -28, Y: 0.5, Z: -167 with collision (FIX: collider now matches visual position)');
     },
     // onProgress
     (xhr) => {
@@ -2193,13 +3873,14 @@ function loadBMW_X6M_V1_MassiveScale() {
             }
         });
 
-        // Add collision for X6M (scaled dimensions: 1.5x)
-        addCollider(-25, -85, 4.305, 10.935, 3.15, 'BMW X6M Competition', 0);
+        // FIX: Collision box position must match visual car position
+        // Car is at X: -14, Z: -85, so collider must be at the same position
+        addCollider(-14, -85, 4.305, 10.935, 3.15, 'BMW X6M Competition', 0);
 
         // Hazard lights removed per user request
         // addHazardLightsToCar(bmwX6M, 'BMW X6M Competition');
 
-        console.log('✅ X6M loaded at X: -25, Z: -85 with scale 1.5x (no hazard lights)');
+        console.log('✅ X6M loaded at X: -14, Z: -85 with collision (FIX: collider now matches visual position)');
     },
     // onProgress
     (xhr) => {
@@ -2266,8 +3947,9 @@ function loadVW_TCross_V2_Bigger_OnFloor() {
                 }
             });
 
-            // VW T-Cross dimensions scaled 1.5x: ~6.15m length, ~2.7m width, ~2.4m height
-            addCollider(-35, -110, 2.7, 6.15, 2.4, 'Volkswagen T-Cross', 0);
+            // FIX: Collision box position must match visual car position
+            // Car is at X: -22, Z: -110, so collider must be at the same position
+            addCollider(-22, -110, 2.7, 6.15, 2.4, 'Volkswagen T-Cross', 0);
 
             // Add hazard lights
             addHazardLightsToCar(vwTCross, 'Volkswagen T-Cross');
@@ -2275,7 +3957,7 @@ function loadVW_TCross_V2_Bigger_OnFloor() {
             // Initialize damage system for this car
             // initCarDamageState(vwTCross, 'Volkswagen T-Cross'); // TODO: Implement damage system
 
-            console.log('✅ VW T-Cross loaded at X: -35, Y: 0.1, Z: -110 with scale 1.5x');
+            console.log('✅ VW T-Cross loaded at X: -22, Y: 0.1, Z: -110 with collision (FIX: collider now matches visual position)');
             console.log('Car should be on the floor and slightly bigger. Production version.');
         },
         // onProgress
@@ -2402,11 +4084,13 @@ function loadMercA45_V2() {
                 }
             });
 
-            addCollider(-25, -35, 2.69, 6.54, 2.18, 'Mercedes A45 AMG', 0);
+            // FIX: Collision box position must match visual car position
+            // Car is at X: -11, Z: -35, so collider must be at the same position
+            addCollider(-11, -35, 2.69, 6.54, 2.18, 'Mercedes A45 AMG', 0);
             addHazardLightsToCar(mercA45, 'Mercedes A45 AMG');
             // initCarDamageState(mercA45, 'Mercedes A45 AMG'); // TODO: Implement damage system
 
-            console.log('✅ Mercedes A45 AMG loaded at X: -25, Y: 0.1, Z: -35 with scale 1.5x');
+            console.log('✅ Mercedes A45 AMG loaded at X: -11, Y: 0.2, Z: -35 with collision (FIX: collider now matches visual position)');
         },
         (xhr) => {
             if (xhr.lengthComputable) {
@@ -2712,6 +4396,11 @@ function toggleCollisionDebug(show) {
     });
 }
 
+// FIX: Added collision debug flag - set to true to see collision checks in console
+let _collisionDebugEnabled = false;
+window.enableCollisionDebug = () => { _collisionDebugEnabled = true; console.log('Collision debugging ENABLED'); };
+window.disableCollisionDebug = () => { _collisionDebugEnabled = false; console.log('Collision debugging DISABLED'); };
+
 function checkEnvironmentCollision(newX, newZ, radius = 0.5) {
     for (const collider of environmentColliders) {
         const halfWidth = collider.width / 2;
@@ -2741,6 +4430,10 @@ function checkEnvironmentCollision(newX, newZ, radius = 0.5) {
             const distanceSquared = distanceX * distanceX + distanceZ * distanceZ;
 
             if (distanceSquared < (radius * radius)) {
+                // FIX: Debug log when collision is detected with a car
+                if (_collisionDebugEnabled) {
+                    console.log(`[COLLISION] Hit ${collider.label} at X=${newX.toFixed(1)}, Z=${newZ.toFixed(1)}`);
+                }
                 return true; // Collision detected!
             }
         } else {
@@ -2753,6 +4446,10 @@ function checkEnvironmentCollision(newX, newZ, radius = 0.5) {
             const distanceSquared = distanceX * distanceX + distanceZ * distanceZ;
 
             if (distanceSquared < (radius * radius)) {
+                // FIX: Debug log when collision is detected with a car (AABB case)
+                if (_collisionDebugEnabled) {
+                    console.log(`[COLLISION] Hit ${collider.label} at X=${newX.toFixed(1)}, Z=${newZ.toFixed(1)}`);
+                }
                 return true; // Collision detected!
             }
         }
@@ -2865,34 +4562,8 @@ const CollisionSystem = {
     },
 
     showVersionNotification(version) {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            color: #00ff00;
-            padding: 20px 40px;
-            border: 2px solid #00ff00;
-            border-radius: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 18px;
-            z-index: 10000;
-            text-align: center;
-        `;
-        notification.innerHTML = `
-            <div style="font-size: 24px; margin-bottom: 10px;">🎯 COLLISION SYSTEM</div>
-            <div>Version ${version}</div>
-            <div style="font-size: 14px; margin-top: 10px; color: #ffff00;">${this.getVersionName(version)}</div>
-        `;
-        document.body.appendChild(notification);
-
-        setTimeout(() => {
-            notification.style.transition = 'opacity 0.5s';
-            notification.style.opacity = '0';
-            setTimeout(() => document.body.removeChild(notification), 500);
-        }, 2000);
+        // Disabled - loading screen replaces this
+        console.log(`🎯 COLLISION SYSTEM - Version ${version}: ${this.getVersionName(version)}`);
     }
 };
 
@@ -3622,7 +5293,7 @@ const UI = {
                         </div>
                     </div>
 
-                    <p style="font-size: 14px; color: #666; margin-top: 40px;">Use WASD or Arrow Keys to move</p>
+                    <p style="font-size: 14px; color: #666; margin-top: 40px;">Use Arrow Keys to move • Spacebar to shoot</p>
                 </div>
             `;
         } else if (GameState.screen === 'PLAYING') {
@@ -3635,13 +5306,6 @@ const UI = {
             const mazeControls = '';
 
             this.overlay.innerHTML = `
-                <div style="position: absolute; top: 20px; left: 20px; color: white; font-size: 18px;">
-                    <div>Score: ${GameState.score}</div>
-                    <div style="color: #ffeb3b;">Best: ${GameState.highScore}</div>
-                </div>
-                <div style="position: absolute; top: 20px; right: 20px; color: white; font-size: 24px;">
-                    ${'❤️'.repeat(GameState.lives)}${'🖤'.repeat(GameState.maxLives - GameState.lives)}
-                </div>
                 <div style="display: none; position: absolute; top: 0; left: 0; width: 100%; padding: 10px; text-align: center; background: ${modeColor}; color: white; font-size: 24px; font-weight: bold;">
                     ${modeText}
                 </div>
@@ -3709,6 +5373,9 @@ function startShootingGame() {
 
     console.log('Starting Animation Testing mode...');
 
+    // Show Stage 2 loading screen
+    Stage2LoadingScreen.show();
+
     // Clear any existing chase mode objects
     if (playerModel) scene.remove(playerModel);
     if (enemyModel) scene.remove(enemyModel);
@@ -3739,7 +5406,8 @@ function startShootingGame() {
     // Load officer character
     loadOfficerCharacter();
 
-    UI.updateUI();
+    // Don't update UI yet - wait for Stage 2 loading to complete
+    // UI.updateUI();
 
     // Debug dashboards removed for production
     // createDebugDashboard();
@@ -3835,7 +5503,15 @@ function animate() {
     // Always update animations so they loop smoothly regardless of game state
     if (playerMixer) playerMixer.update(delta);
     if (enemyMixer) enemyMixer.update(delta);
-    if (shooterMixer) shooterMixer.update(delta);
+    if (shooterMixer) {
+        shooterMixer.update(delta);
+        // Debug: Log mixer state occasionally
+        if (!window._mixerDebugCounter) window._mixerDebugCounter = 0;
+        window._mixerDebugCounter++;
+        if (window._mixerDebugCounter % 120 === 0) { // Every ~2 seconds at 60fps
+            console.log('[MIXER DEBUG] Shooter mixer updating, delta:', delta.toFixed(4), 'actions:', shooterMixer._actions.length);
+        }
+    }
 
     // Update hazard lights flashing
     // updateHazardLights(delta); // Disabled - removing amber lights per user request
@@ -3920,6 +5596,9 @@ function animate() {
                     Math.abs(bullet.position.x) > 100 ||
                     Math.abs(bullet.position.z) > 100) {
                     scene.remove(bullet);
+                    // Dispose geometry and material to prevent memory leaks
+                    if (bullet.geometry) bullet.geometry.dispose();
+                    if (bullet.material) bullet.material.dispose();
                     bullets.splice(i, 1);
                 }
             }
@@ -3943,6 +5622,9 @@ function animate() {
                 // Remove if expired
                 if (smoke.userData.lifetime >= smoke.userData.maxLifetime) {
                     scene.remove(smoke);
+                    // Dispose geometry and material to prevent memory leaks
+                    if (smoke.geometry) smoke.geometry.dispose();
+                    if (smoke.material) smoke.material.dispose();
                     smokeParticles.splice(i, 1);
                 }
             }
@@ -3990,6 +5672,9 @@ function animate() {
                 // Remove old casings after 30 seconds
                 if (casing.userData.lifetime > 30) {
                     scene.remove(casing);
+                    // Dispose geometry and material to prevent memory leaks
+                    if (casing.geometry) casing.geometry.dispose();
+                    if (casing.material) casing.material.dispose();
                     bulletCasings.splice(i, 1);
                 }
             }
@@ -4121,10 +5806,10 @@ function init() {
         console.log('🎯 Auto-starting Animation Testing mode (mode=test detected)');
         startShootingGame();
     } else {
-        console.log('📋 Showing level selection menu (use ?v=2&mode=test to auto-start Animation Testing)');
+        console.log('📋 Level selection menu will show after loading completes');
         GameState.screen = 'START';
         GameState.isRunning = false;
-        UI.updateUI();
+        // Don't call UI.updateUI() here - it will be called after loading completes
     }
 
     // Start animation loop
@@ -4155,6 +5840,9 @@ window.getCarObjects = () => ({
     mercA45,
     fordFiesta
 });
+
+// Initialize loading screen IMMEDIATELY (before anything else loads)
+LoadingScreen.init();
 
 // Start when ready
 if (document.readyState === 'complete') {
