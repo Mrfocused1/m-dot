@@ -2297,8 +2297,6 @@ function loadVW_TCross_V2_Bigger_OnFloor() {
 // ============================================================
 // Range Rover Evoque #2 - Car #5 in tunnel (formerly VW T-Cross TSI)
 // ============================================================
-}
-
 
 function loadVW_TCross_TSI_V2() {
     console.log('Loading Range Rover Evoque #2 (duplicate)');
@@ -2349,7 +2347,6 @@ function loadVW_TCross_TSI_V2() {
 // ============================================================
 // Audi RS6 Avant - Car #6 in tunnel
 // ============================================================
-}
 
 
 
@@ -2366,7 +2363,6 @@ function loadVW_TCross_TSI_V2() {
 // ============================================================
 // Range Rover Evoque - Car #7 in tunnel
 // ============================================================
-}
 
 
 
@@ -2381,7 +2377,6 @@ function loadVW_TCross_TSI_V2() {
 // ============================================================
 // Mercedes A45 AMG - Car #8 in tunnel
 // ============================================================
-}
 
 
 function loadMercA45_V2() {
@@ -2428,7 +2423,6 @@ function loadMercA45_V2() {
 // ============================================================
 // Ford Fiesta Zetec S - Car #9 in tunnel
 // ============================================================
-}
 
 
 function loadFordFiesta_V2() {
