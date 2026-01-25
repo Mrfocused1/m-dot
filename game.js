@@ -927,42 +927,71 @@ const Input = {
         // Only process if moved at least 30px (prevents accidental swipes)
         if (distance < 30) return;
 
-        // Determine swipe direction based on which delta is larger
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-            // Horizontal swipe
-            if (deltaX > 0) {
-                // Swipe RIGHT
-                if (!MazeController.keysPressed.right) {
-                    console.log('📱 Swipe RIGHT detected');
-                    MazeController.keysPressed.right = true;
-                    MazeController.keysPressed.left = false;
-                }
-            } else {
-                // Swipe LEFT
-                if (!MazeController.keysPressed.left) {
-                    console.log('📱 Swipe LEFT detected');
-                    MazeController.keysPressed.left = true;
-                    MazeController.keysPressed.right = false;
-                }
-            }
-        } else {
-            // Vertical swipe
-            if (deltaY > 0) {
-                // Swipe DOWN
-                if (!MazeController.keysPressed.down) {
-                    console.log('📱 Swipe DOWN detected');
-                    MazeController.keysPressed.down = true;
-                    MazeController.keysPressed.up = false;
-                }
-            } else {
-                // Swipe UP
-                if (!MazeController.keysPressed.up) {
-                    console.log('📱 Swipe UP detected');
-                    MazeController.keysPressed.up = true;
-                    MazeController.keysPressed.down = false;
-                }
-            }
+        // Determine primary swipe direction
+        const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+        const isVertical = Math.abs(deltaY) > Math.abs(deltaX);
+
+        // Swipe DOWN = STOP command (makes character idle)
+        if (deltaY > 0 && isVertical) {
+            console.log('📱 Swipe DOWN detected - STOP (become idle)');
+            MazeController.keysPressed.up = false;
+            MazeController.keysPressed.down = false;
+            MazeController.keysPressed.left = false;
+            MazeController.keysPressed.right = false;
+            this.touchStartX = touch.clientX;
+            this.touchStartY = touch.clientY;
+            return;
         }
+
+        // Swipe UP = Move forward continuously
+        if (deltaY < 0 && isVertical) {
+            console.log('📱 Swipe UP detected - continuous forward movement');
+            MazeController.keysPressed.up = true;
+            MazeController.keysPressed.down = false;
+            this.touchStartX = touch.clientX;
+            this.touchStartY = touch.clientY;
+            return;
+        }
+
+        // Swipe LEFT = Strafe left continuously
+        if (deltaX < 0 && isHorizontal) {
+            console.log('📱 Swipe LEFT detected - continuous left movement');
+            MazeController.keysPressed.left = true;
+            MazeController.keysPressed.right = false;
+            this.touchStartX = touch.clientX;
+            this.touchStartY = touch.clientY;
+            return;
+        }
+
+        // Swipe RIGHT = Strafe right continuously
+        if (deltaX > 0 && isHorizontal) {
+            console.log('📱 Swipe RIGHT detected - continuous right movement');
+            MazeController.keysPressed.right = true;
+            MazeController.keysPressed.left = false;
+            this.touchStartX = touch.clientX;
+            this.touchStartY = touch.clientY;
+            return;
+        }
+
+        // Diagonal swipes - allow combined directions
+        if (deltaY < 0 && deltaX > 0) {
+            // UP + RIGHT
+            console.log('📱 Swipe UP-RIGHT detected - diagonal movement');
+            MazeController.keysPressed.up = true;
+            MazeController.keysPressed.right = true;
+            MazeController.keysPressed.down = false;
+            MazeController.keysPressed.left = false;
+        } else if (deltaY < 0 && deltaX < 0) {
+            // UP + LEFT
+            console.log('📱 Swipe UP-LEFT detected - diagonal movement');
+            MazeController.keysPressed.up = true;
+            MazeController.keysPressed.left = true;
+            MazeController.keysPressed.down = false;
+            MazeController.keysPressed.right = false;
+        }
+
+        this.touchStartX = touch.clientX;
+        this.touchStartY = touch.clientY;
     },
 
     handleTouchEnd(e) {
@@ -983,11 +1012,8 @@ const Input = {
             }
         }
 
-        // Clear all movement when touch ends
-        MazeController.keysPressed.up = false;
-        MazeController.keysPressed.down = false;
-        MazeController.keysPressed.left = false;
-        MazeController.keysPressed.right = false;
+        // DON'T clear movement - character continues moving in last swiped direction
+        // Movement only stops when user swipes in the opposite direction
 
         this.touchStartX = null;
         this.touchStartY = null;
