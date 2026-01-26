@@ -5981,9 +5981,6 @@ function startGame() {
 
     console.log('Starting Stage 1...');
 
-    // Show Stage 1 loading screen
-    Stage1LoadingScreen.show();
-
     GameState.screen = 'PLAYING';
     GameState.isRunning = true;
     GameState.score = 0;
@@ -5992,17 +5989,28 @@ function startGame() {
     EnemyController.init();
     ObstacleManager.reset();
 
-    // Load Jammer character for Level 1 if not already loaded
-    if (!playerModel) {
-        loadPlayerCharacter();
-    }
-    // Load enemy character for Level 1 if not already loaded
-    if (!enemyModel) {
-        loadEnemyCharacter();
-    }
+    // Check if characters are already loaded
+    const charactersAlreadyLoaded = playerModel && enemyModel;
 
-    // Don't update UI yet - wait for Stage 1 loading to complete
-    // UI will be updated when stage1LoadingManager.onLoad triggers
+    if (charactersAlreadyLoaded) {
+        // Characters already loaded, no need for loading screen
+        console.log('Stage 1 assets already loaded, starting immediately');
+        UI.updateUI();
+    } else {
+        // Show loading screen and load characters
+        Stage1LoadingScreen.show();
+
+        // Load Jammer character for Level 1 if not already loaded
+        if (!playerModel) {
+            loadPlayerCharacter();
+        }
+        // Load enemy character for Level 1 if not already loaded
+        if (!enemyModel) {
+            loadEnemyCharacter();
+        }
+
+        // UI will be updated when stage1LoadingManager.onLoad triggers
+    }
 
     console.log('Starting game with level:', GameState.selectedLevel);
 }
