@@ -1108,6 +1108,14 @@ const Input = {
                 MazeController.keysPressed.right = false;
                 MazeController.keysPressed.up = false;
                 MazeController.keysPressed.down = false;
+
+                // Level 1 (chase mode) lane change
+                if (GameState.selectedLevel === 'chase') {
+                    this.touchSide = 'LEFT';
+                    this.touchActive = true;
+                    this.inputProcessed = false;
+                    console.log('📱 Level 1: LEFT lane change triggered');
+                }
             } else if (deltaX > 0 && absDeltaX > absDeltaY) {
                 // PURE RIGHT
                 console.log('📱 Swipe RIGHT (pure)');
@@ -1115,6 +1123,14 @@ const Input = {
                 MazeController.keysPressed.left = false;
                 MazeController.keysPressed.up = false;
                 MazeController.keysPressed.down = false;
+
+                // Level 1 (chase mode) lane change
+                if (GameState.selectedLevel === 'chase') {
+                    this.touchSide = 'RIGHT';
+                    this.touchActive = true;
+                    this.inputProcessed = false;
+                    console.log('📱 Level 1: RIGHT lane change triggered');
+                }
             }
         }
 
@@ -1143,7 +1159,15 @@ const Input = {
             }
         }
 
-        // DON'T clear movement - character continues moving in last swiped direction
+        // For Level 1 (chase mode), clear touch state after processing
+        if (GameState.selectedLevel === 'chase') {
+            setTimeout(() => {
+                this.touchActive = false;
+                this.touchSide = null;
+            }, 100);
+        }
+
+        // For Level 2, DON'T clear movement - character continues moving in last swiped direction
         // Movement only stops when user swipes in the opposite direction
 
         this.touchStartX = null;
