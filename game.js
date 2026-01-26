@@ -545,6 +545,84 @@ const LoadingScreen = {
 };
 
 // STAGE 2 LOADING SCREEN (Level-specific)
+const Stage1LoadingScreen = {
+    overlay: null,
+    isComplete: false,
+    startTime: 0,
+    minDisplayTime: 1000, // Minimum 1 second display time
+
+    show() {
+        this.isComplete = false;
+        this.startTime = Date.now();
+
+        // Create loading screen overlay
+        this.overlay = document.createElement('div');
+        this.overlay.id = 'stage1-loading-screen';
+        this.overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: linear-gradient(180deg, #1a237e 0%, #0d47a1 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        `;
+        this.overlay.innerHTML = `
+            <div style="text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 15px; color: #4fc3f7;">🏃 STAGE 1</div>
+                <div style="font-size: 20px; margin-bottom: 30px; color: #90caf9;">Loading Jammer...</div>
+                <div style="width: 300px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; margin-bottom: 20px;">
+                    <div id="stage1-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #4fc3f7, #2196f3); transition: width 0.3s;"></div>
+                </div>
+                <div id="stage1-loading-text" style="font-size: 18px; color: #90caf9;">Loading... 0%</div>
+            </div>
+        `;
+        document.body.appendChild(this.overlay);
+        console.log('Stage 1 loading screen shown');
+    },
+
+    updateProgress(percentage) {
+        const bar = document.getElementById('stage1-loading-bar');
+        const text = document.getElementById('stage1-loading-text');
+        if (bar) bar.style.width = percentage + '%';
+        if (text) text.textContent = `Loading... ${percentage}%`;
+        console.log(`Stage 1 loading progress: ${percentage}%`);
+    },
+
+    complete() {
+        if (this.isComplete) return;
+        this.isComplete = true;
+
+        // Calculate how long we've been displaying
+        const elapsed = Date.now() - this.startTime;
+        const remainingTime = Math.max(0, this.minDisplayTime - elapsed);
+
+        console.log(`Stage 1 loading complete. Elapsed: ${elapsed}ms, Remaining: ${remainingTime}ms`);
+
+        // Wait for minimum display time before fading out
+        setTimeout(() => {
+            if (!this.overlay) return;
+
+            // Fade out loading screen
+            this.overlay.style.transition = 'opacity 0.5s';
+            this.overlay.style.opacity = '0';
+
+            setTimeout(() => {
+                if (this.overlay && this.overlay.parentNode) {
+                    this.overlay.parentNode.removeChild(this.overlay);
+                    this.overlay = null;
+                }
+            }, 500);
+        }, remainingTime);
+    }
+};
+
 const Stage2LoadingScreen = {
     overlay: null,
     isComplete: false,
@@ -648,6 +726,32 @@ loadingManager.onLoad = () => {
 };
 const sharedGLTFLoader = new GLTFLoader(loadingManager);
 const sharedFBXLoader = new FBXLoader(loadingManager);
+
+// STAGE 1 LOADER WITH SEPARATE PROGRESS TRACKING
+const stage1LoadingManager = new THREE.LoadingManager();
+let stage1AssetsLoaded = false;
+
+stage1LoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+    const progress = Math.round((itemsLoaded / itemsTotal) * 100);
+    console.log(`🔄 Stage 1 Loading: ${progress}% (${itemsLoaded}/${itemsTotal})`);
+    Stage1LoadingScreen.updateProgress(progress);
+};
+stage1LoadingManager.onLoad = () => {
+    console.log('✅ All Stage 1 assets loaded!');
+    stage1AssetsLoaded = true;
+
+    // Complete Stage 1 loading screen
+    setTimeout(() => {
+        Stage1LoadingScreen.complete();
+
+        // Update UI now that Stage 1 is ready
+        if (GameState.selectedLevel === 'chase') {
+            UI.updateUI();
+        }
+    }, 300);
+};
+const stage1GLTFLoader = new GLTFLoader(stage1LoadingManager);
+const stage1FBXLoader = new FBXLoader(stage1LoadingManager);
 
 // STAGE 2 LOADER WITH SEPARATE PROGRESS TRACKING
 const stage2LoadingManager = new THREE.LoadingManager();
@@ -2671,7 +2775,7 @@ const ObstacleManager = {
     loadObstacleModels() {
         console.log('Loading obstacle models...');
 
-        const loader = sharedGLTFLoader;
+        const loader = stage1GLTFLoader;
 
         // Load concrete barrier
         loader.load(
@@ -2809,7 +2913,7 @@ const EnvironmentManager = {
     loadRoadModel() {
         console.log('Loading 3D road model...');
 
-        const loader = sharedGLTFLoader;
+        const loader = stage1GLTFLoader;
 
         loader.load(
             'road_hd.glb',
@@ -2985,7 +3089,7 @@ const EnvironmentManager = {
 // ============================================================================
 
 function loadPlayerCharacter() {
-    const loader = sharedFBXLoader;
+    const loader = stage1FBXLoader;
 
     // Load main running animation
     loader.load('jammer_run.fbx', (fbx) => {
@@ -3026,7 +3130,7 @@ function loadPlayerCharacter() {
 }
 
 function loadPlayerTurnAnimation() {
-    const loader = sharedFBXLoader;
+    const loader = stage1FBXLoader;
 
     loader.load('jammer_running_turn.fbx', (fbx) => {
         if (fbx.animations && fbx.animations.length > 0) {
@@ -3064,7 +3168,7 @@ function loadPlayerTurnAnimation() {
 }
 
 function loadPlayerFlipAnimation() {
-    const loader = sharedFBXLoader;
+    const loader = stage1FBXLoader;
 
     loader.load('jammer_flip.fbx', (fbx) => {
         if (fbx.animations && fbx.animations.length > 0) {
@@ -3139,7 +3243,7 @@ function createFallbackPlayer() {
 }
 
 function loadEnemyCharacter() {
-    const loader = sharedFBXLoader;
+    const loader = stage1FBXLoader;
 
     loader.load('Fast Run.fbx', (fbx) => {
         enemyModel = fbx;
@@ -5870,6 +5974,11 @@ function startGame() {
     removeDebugDashboard();
     removeStepTrackerDashboard();
 
+    console.log('Starting Stage 1...');
+
+    // Show Stage 1 loading screen
+    Stage1LoadingScreen.show();
+
     GameState.screen = 'PLAYING';
     GameState.isRunning = true;
     GameState.score = 0;
@@ -5877,7 +5986,6 @@ function startGame() {
     PlayerController.init();
     EnemyController.init();
     ObstacleManager.reset();
-    UI.updateUI();
 
     // Load Jammer character for Level 1 if not already loaded
     if (!playerModel) {
@@ -5887,6 +5995,9 @@ function startGame() {
     if (!enemyModel) {
         loadEnemyCharacter();
     }
+
+    // Don't update UI yet - wait for Stage 1 loading to complete
+    // UI will be updated when stage1LoadingManager.onLoad triggers
 
     console.log('Starting game with level:', GameState.selectedLevel);
 }
