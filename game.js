@@ -1028,6 +1028,7 @@ const Input = {
     touchY: 0,
     inputProcessed: false,
     canvas: null,
+    wasSwipe: false, // Track if current touch was a swipe (not a tap)
 
     init() {
         console.log('Input system initializing...');
@@ -1070,6 +1071,7 @@ const Input = {
         this.touchStartX = touch.clientX;
         this.touchStartY = touch.clientY;
         this.touchStartTime = Date.now();
+        this.wasSwipe = false; // Reset swipe flag on new touch
 
         console.log('Touch START at:', this.touchStartX, this.touchStartY);
     },
@@ -1163,6 +1165,7 @@ const Input = {
                     this.touchSide = 'LEFT';
                     this.touchActive = true;
                     this.inputProcessed = false;
+                    this.wasSwipe = true; // Mark as swipe to prevent throw
                     console.log('📱 Level 1: LEFT lane change triggered');
                 }
             } else if (deltaX > 0 && absDeltaX > absDeltaY) {
@@ -1178,6 +1181,7 @@ const Input = {
                     this.touchSide = 'RIGHT';
                     this.touchActive = true;
                     this.inputProcessed = false;
+                    this.wasSwipe = true; // Mark as swipe to prevent throw
                     console.log('📱 Level 1: RIGHT lane change triggered');
                 }
             }
@@ -1202,8 +1206,9 @@ const Input = {
         const deltaY = Math.abs(touch.clientY - this.touchStartY);
         const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        // TAP detection: short duration + minimal movement = tap to shoot/throw
-        if (touchDuration < 200 && totalDistance < 20) {
+        // TAP detection: short duration + minimal movement + NOT a swipe = tap to shoot/throw
+        // FIXED: Added !this.wasSwipe check to prevent throw during lane change swipes
+        if (touchDuration < 200 && totalDistance < 20 && !this.wasSwipe) {
             if (GameState.selectedLevel === 'shoot' && GameState.screen === 'PLAYING') {
                 console.log('📱 TAP detected - SHOOT!');
                 MazeController.shoot();
@@ -1211,6 +1216,8 @@ const Input = {
                 console.log('📱 TAP detected - THROW!');
                 PlayerController.startThrow();
             }
+        } else if (this.wasSwipe) {
+            console.log('📱 Swipe detected - ignoring throw (wasSwipe=true)');
         }
 
         // For Level 1 (chase mode), clear touch state after processing
@@ -1990,6 +1997,8 @@ const EnemyController = {
     runAwaySpeed: 5, // Speed when running away (reduced from 20 so thrown item can reach)
     health: 5,
     maxHealth: 5,
+    isJumping: false, // RALPH FIX: Track if enemy is jumping over obstacle
+    jumpStartY: 1.0,
 
     init() {
         this.currentLane = 1;
@@ -1997,6 +2006,61 @@ const EnemyController = {
         this.laneChangeTimer = 0;
         this.isRunningAway = false;
         this.health = this.maxHealth;
+        this.isJumping = false;
+    },
+
+    // RALPH FIX: Check if there's an obstacle ahead in current lane
+    checkObstacleAhead() {
+        if (!enemyModel) return null;
+
+        for (let i = 0; i < obstacles.length; i++) {
+            const obstacle = obstacles[i];
+            if (!obstacle.active) continue;
+
+            const sameColumn = obstacle.lane === this.currentLane;
+            const distance = obstacle.mesh.position.z - enemyModel.position.z;
+
+            // Check if obstacle is ahead and within jump range
+            if (distance > 0 && distance < 6 && sameColumn) {
+                return obstacle;
+            }
+        }
+        return null;
+    },
+
+    // RALPH FIX: Jump over obstacle
+    startJump() {
+        if (this.isJumping || !enemyModel) return;
+
+        console.log('🦘 Enemy jumping over obstacle!');
+        this.isJumping = true;
+        this.jumpStartY = enemyModel.position.y;
+    },
+
+    // RALPH FIX: Update jump state
+    updateJump(dt) {
+        if (!this.isJumping || !enemyModel) return;
+
+        // Simple arc jump over 1 second
+        const jumpDuration = 1.0;
+        const jumpHeight = 2.0;
+
+        // Calculate jump progress (0 to 1)
+        const jumpTime = (enemyModel.position.y - this.jumpStartY) / jumpHeight;
+
+        if (enemyModel.position.y < this.jumpStartY + jumpHeight && jumpTime < 0.5) {
+            // Going up
+            enemyModel.position.y += jumpHeight * 2 * dt;
+        } else {
+            // Coming down
+            enemyModel.position.y -= jumpHeight * 2 * dt;
+
+            if (enemyModel.position.y <= this.jumpStartY) {
+                enemyModel.position.y = this.jumpStartY;
+                this.isJumping = false;
+                console.log('🦘 Enemy landed!');
+            }
+        }
     },
 
     takeDamage() {
@@ -2070,6 +2134,19 @@ const EnemyController = {
     },
 
     update(dt) {
+        // RALPH FIX: Check for obstacles ahead and jump
+        if (!this.isJumping) {
+            const obstacleAhead = this.checkObstacleAhead();
+            if (obstacleAhead) {
+                this.startJump();
+            }
+        }
+
+        // RALPH FIX: Update jump state
+        if (this.isJumping) {
+            this.updateJump(dt);
+        }
+
         this.laneChangeTimer += dt;
 
         if (this.laneChangeTimer >= this.laneChangeInterval) {
@@ -2094,6 +2171,7 @@ const EnemyController = {
                 enemyModel.position.x += diff * this.laneChangeSpeed * dt;
             } else {
                 enemyModel.position.x = targetX;
+                this.currentLane = this.targetLane; // RALPH FIX: Update current lane when movement complete
             }
 
             // Position behind/ahead of player based on mode
@@ -7110,8 +7188,9 @@ function checkCollisions() {
                 // Check Z distance (increased threshold for game speed reliability)
                 const zDistance = Math.abs(pickupPos.z - playerPos.z);
 
-                // Collision: within same lane (X < 1.5) and close enough on Z axis (< 2.5)
-                if (xDistance < 1.5 && zDistance < 2.5) {
+                // RALPH FIX: Increased Z threshold from 2.5 to 3.5 for better detection at high speeds
+                // Collision: within same lane (X < 1.5) and close enough on Z axis (< 3.5)
+                if (xDistance < 1.5 && zDistance < 3.5) {
                     console.log(`✨ Pickup collision detected! xDist=${xDistance.toFixed(2)}, zDist=${zDistance.toFixed(2)}, pickupZ=${pickupPos.z.toFixed(2)}, playerZ=${playerPos.z.toFixed(2)}`);
                     // Collect pickup
                     GameState.score += 100;
