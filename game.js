@@ -2195,36 +2195,34 @@ const EnemyController = {
     },
 
     showVictoryScreen() {
-        console.log('🎉 Showing victory - proceeding to Level 2');
+        console.log('🎉 Showing victory - demo complete');
 
         // Stop Level 1 music
         MusicController.stopAll();
 
         const overlay = UI.overlay;
         overlay.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; text-align: center; background: rgba(0,0,0,0.9);">
-                <h1 style="font-size: clamp(32px, 8vw, 64px); color: #00ff41; margin-bottom: 30px; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 20px rgba(0, 255, 65, 0.8);">MISSION COMPLETE!</h1>
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; text-align: center; background: rgba(0,0,0,0.9); padding: 20px;">
+                <h1 style="font-size: clamp(32px, 8vw, 64px); color: #00ff41; margin-bottom: 30px; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 20px rgba(0, 255, 65, 0.8);">MISSION COMPLETED</h1>
                 <p style="font-size: clamp(18px, 4vw, 28px); margin-bottom: 20px;">You caught Soundboy!</p>
                 <p style="font-size: clamp(16px, 3.5vw, 24px); margin-bottom: 10px;">Score: ${GameState.score}</p>
-                <p style="font-size: clamp(14px, 3vw, 18px); color: #888; margin-top: 30px; margin-bottom: 20px;">Proceeding to Mission 02...</p>
-                <div style="width: 300px; max-width: 80%; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden;">
-                    <div id="loading-bar-victory" style="width: 0%; height: 100%; background: linear-gradient(90deg, #00ff41, #00f3ff); transition: width 3s linear;"></div>
+
+                <div style="margin-top: 40px; margin-bottom: 30px; padding: 30px; background: rgba(0, 255, 65, 0.1); border: 2px solid #00ff41; border-radius: 12px; max-width: 600px;">
+                    <p style="font-size: clamp(18px, 4vw, 24px); color: #00ff41; margin-bottom: 20px; font-weight: bold;">Thank you for playing the demo!</p>
+                    <p style="font-size: clamp(14px, 3vw, 18px); color: #ffffff; margin-bottom: 15px;">For more information:</p>
+                    <p style="font-size: clamp(16px, 3.5vw, 20px); color: #00f3ff; margin-bottom: 8px;">
+                        <a href="https://twitter.com/bolalogos" target="_blank" style="color: #00f3ff; text-decoration: none; hover: text-decoration: underline;">@bolalogos</a>
+                    </p>
+                    <p style="font-size: clamp(14px, 3vw, 18px); color: #ffffff;">
+                        <a href="mailto:logosbola@gmail.com" style="color: #ffffff; text-decoration: none;">logosbola@gmail.com</a>
+                    </p>
                 </div>
+
+                <button onclick="window.location.href='select-stage.html'" style="margin-top: 20px; padding: 15px 40px; background: #00ff41; color: #000; border: none; border-radius: 8px; font-size: clamp(14px, 3vw, 18px); font-weight: bold; cursor: pointer; font-family: 'Orbitron', sans-serif; text-transform: uppercase; transition: all 0.3s;">
+                    Return to Menu
+                </button>
             </div>
         `;
-
-        // Start loading bar animation
-        setTimeout(() => {
-            const loadingBar = document.getElementById('loading-bar-victory');
-            if (loadingBar) {
-                loadingBar.style.width = '100%';
-            }
-        }, 100);
-
-        // Navigate to Level 2 after 3 seconds
-        setTimeout(() => {
-            window.location.href = 'game.html?level=2';
-        }, 3000);
     },
 
     update(dt) {
