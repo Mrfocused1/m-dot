@@ -317,28 +317,33 @@
             // --- Hero Animation Timeline ---
             const heroTl = gsap.timeline();
 
-            // 1. Fade in Logo (both mobile and desktop)
-            heroTl.to("#logo-image-mobile, #logo-image-desktop", { opacity: 1, duration: 1, ease: "power2.out" });
+            // Fade in everything at once (logo, title, image)
+            heroTl.to("#logo-image-mobile, #logo-image-desktop", {
+                opacity: 1,
+                duration: 0.8,
+                ease: "power2.out"
+            }, 0);
 
-            // 2. Type Text (both mobile and desktop)
             heroTl.to("#hero-title-mobile, #hero-title-desktop", {
-                duration: 0.5,
+                duration: 0.8,
                 opacity: 1,
                 ease: "power2.out"
-            }).to("#hero-tagline-mobile, #hero-tagline-desktop", {
-                duration: 2,
-                text: "All for the green and Purple",
-                ease: "none"
-            });
+            }, 0);
 
-            // 3. Reveal Hero Image (both mobile and desktop)
             heroTl.to("#hero-image-mobile, #hero-image-desktop", {
                 opacity: 1,
                 y: 0,
                 scale: 1,
-                duration: 1.2,
-                ease: "elastic.out(1, 0.5)"
-            }, "-=1.5");
+                duration: 0.8,
+                ease: "power2.out"
+            }, 0);
+
+            // Then type the tagline after everything is visible
+            heroTl.to("#hero-tagline-mobile, #hero-tagline-desktop", {
+                duration: 2,
+                text: "All for the green and Purple",
+                ease: "none"
+            }, 0.8);
 
             // --- Vortex Spin (Runs always) ---
             gsap.to("#hero-vortex", {

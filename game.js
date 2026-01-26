@@ -7358,8 +7358,20 @@ function init() {
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Auto-start Animation Testing only if mode=test parameter is present
-    if (shouldAutoStart) {
+    // Check for level parameter and auto-start the game
+    const levelParam = urlParams.get('level');
+    if (levelParam === '1') {
+        console.log('🎯 Auto-starting Mission 01 (Chase Mode)');
+        setTimeout(() => {
+            startGame();
+        }, 100);
+    } else if (levelParam === '2') {
+        console.log('🎯 Auto-starting Mission 02 (Shoot Mode)');
+        setTimeout(() => {
+            startShootingGame();
+        }, 100);
+    } else if (shouldAutoStart) {
+        // Auto-start Animation Testing only if mode=test parameter is present
         console.log('🎯 Auto-starting Animation Testing mode (mode=test detected)');
         startShootingGame();
     } else {
