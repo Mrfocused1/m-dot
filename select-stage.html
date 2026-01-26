@@ -251,43 +251,9 @@
         // Initialize Icons
         lucide.createIcons();
 
-        // Continue intro music if it was playing
+        // No intro music - removed per user request
         window.addEventListener('load', () => {
-            const introMusic = document.getElementById('intro-music');
-            const musicPlaying = sessionStorage.getItem('introMusicPlaying');
-            const musicTime = sessionStorage.getItem('introMusicTime');
-
-            if (musicPlaying === 'true' && introMusic) {
-                introMusic.currentTime = parseFloat(musicTime) || 0;
-                introMusic.volume = 0.5;
-
-                // Try to play immediately on page load
-                const playPromise = introMusic.play();
-
-                if (playPromise !== undefined) {
-                    playPromise
-                        .then(() => {
-                            console.log('🎵 Continuing intro music from', musicTime + 's');
-                        })
-                        .catch(err => {
-                            console.log('🎵 Autoplay blocked, will start on user interaction');
-
-                            // If autoplay is blocked, play on first user interaction
-                            const playOnInteraction = () => {
-                                introMusic.play().then(() => {
-                                    console.log('🎵 Music started after user interaction');
-                                }).catch(e => console.log('Music play failed:', e));
-
-                                // Remove listeners after first play
-                                document.removeEventListener('click', playOnInteraction);
-                                document.removeEventListener('touchstart', playOnInteraction);
-                            };
-
-                            document.addEventListener('click', playOnInteraction);
-                            document.addEventListener('touchstart', playOnInteraction);
-                        });
-                }
-            }
+            console.log('Select stage loaded - no intro music');
         });
 
         // --- Custom Cursor Logic ---
@@ -345,11 +311,7 @@
             const loader = document.getElementById('loader');
             loader.style.display = 'flex';
 
-            // Keep intro music playing during loading screen
-            const introMusic = document.getElementById('intro-music');
-            if (introMusic && introMusic.paused) {
-                introMusic.play().catch(err => console.log('Music play failed:', err));
-            }
+            // No intro music - removed per user request
 
             const loaderTl = gsap.timeline();
             // Note: Navigation handled by message listener when game signals it's fully loaded

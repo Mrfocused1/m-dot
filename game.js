@@ -8333,20 +8333,7 @@ function init() {
     loadHighScore();
     // createCarDashboard(); // Disabled - using position tracker instead
 
-    // Continue intro music from loading screen (will be stopped when game starts)
-    const introMusicTime = sessionStorage.getItem('introMusicTime');
-    if (introMusicTime !== null) {
-        const introMusic = document.getElementById('intro-music');
-        if (introMusic) {
-            introMusic.currentTime = parseFloat(introMusicTime);
-            introMusic.volume = 0.5;
-            introMusic.play().then(() => {
-                console.log('🎵 Intro music continuing from loading screen');
-            }).catch(err => {
-                console.log('🎵 Intro music play failed (autoplay blocked):', err);
-            });
-        }
-    }
+    // No intro music - removed per user request
 
     // Check URL parameters - auto-start Animation Testing if collision version specified
     const urlParams = new URLSearchParams(window.location.search);
