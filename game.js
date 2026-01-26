@@ -742,17 +742,17 @@ stage1LoadingManager.onLoad = () => {
 
     // Complete Stage 1 loading screen
     setTimeout(() => {
+        // Update UI BEFORE fading out loading screen so playing screen is ready underneath
+        if (GameState.selectedLevel === 'chase') {
+            UI.updateUI();
+        }
+
         Stage1LoadingScreen.complete();
 
         // Start the game AFTER loading screen fades out (1000ms minimum + 500ms fade)
         setTimeout(() => {
             console.log('🎮 Starting gameplay after loading complete');
             GameState.isRunning = true;
-
-            // Update UI now that Stage 1 is ready
-            if (GameState.selectedLevel === 'chase') {
-                UI.updateUI();
-            }
         }, 1500);
     }, 300);
 };
