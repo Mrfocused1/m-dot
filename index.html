@@ -302,12 +302,19 @@
                 button.addEventListener('click', (e) => {
                     // Play the music
                     themeMusic.currentTime = 0; // Start from beginning
+                    themeMusic.volume = 0.5;
                     themeMusic.play().catch(err => console.log('Audio play failed:', err));
+
+                    // Store music state for continuation on next page
+                    sessionStorage.setItem('introMusicPlaying', 'true');
+                    sessionStorage.setItem('introMusicTime', '0');
 
                     // If it's the Play Game button, allow navigation after a brief moment
                     if (button.tagName === 'A') {
                         e.preventDefault();
                         setTimeout(() => {
+                            // Update music time before navigation
+                            sessionStorage.setItem('introMusicTime', themeMusic.currentTime.toString());
                             window.location.href = button.href;
                         }, 300);
                     }

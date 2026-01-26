@@ -117,6 +117,11 @@
     <!-- Custom Cursor -->
     <div id="cursor"></div>
 
+    <!-- Intro Music (continues from index.html) -->
+    <audio id="intro-music" loop preload="auto">
+        <source src="merkleman-theme.mp3" type="audio/mpeg">
+    </audio>
+
     <!-- LOADING SCREEN (Street Fighter Style) - Hidden by default -->
     <div id="loader" class="fixed inset-0 z-[100] flex overflow-hidden font-display bg-black select-none" style="display: none;">
         <!-- Left Side (Hero) -->
@@ -227,6 +232,18 @@
     <script>
         // Initialize Icons
         lucide.createIcons();
+
+        // Continue intro music if it was playing
+        const introMusic = document.getElementById('intro-music');
+        const musicPlaying = sessionStorage.getItem('introMusicPlaying');
+        const musicTime = sessionStorage.getItem('introMusicTime');
+
+        if (musicPlaying === 'true' && introMusic) {
+            introMusic.currentTime = parseFloat(musicTime) || 0;
+            introMusic.volume = 0.5;
+            introMusic.play().catch(err => console.log('Music play failed:', err));
+            console.log('🎵 Continuing intro music from', musicTime + 's');
+        }
 
         // --- Custom Cursor Logic ---
         const cursor = document.getElementById('cursor');

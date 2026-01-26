@@ -807,6 +807,10 @@ const MusicController = {
 
         console.log('🎵 Starting Level 1 music');
 
+        // Stop intro music if it's playing
+        sessionStorage.removeItem('introMusicPlaying');
+        sessionStorage.removeItem('introMusicTime');
+
         // Stop any currently playing music
         this.stopAll();
 
@@ -1679,7 +1683,7 @@ const EnemyController = {
     laneChangeInterval: 2,
     distanceFromPlayer: -15, // Behind player in chase mode
     isRunningAway: false, // When true, enemy runs away during throw
-    runAwaySpeed: 20, // Speed when running away
+    runAwaySpeed: 5, // Speed when running away (reduced from 20 so thrown item can reach)
     health: 5,
     maxHealth: 5,
 
