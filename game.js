@@ -919,7 +919,8 @@ const GameState = {
     gameSpeed: GAME_SPEED,
     selectedLevel: null, // 'chase', 'shoot', or 'shoot-horizontal'
     stageCompleted: false, // Track if player reached the end
-    isHorizontalMode: false // True when playing Stage 2 Mobile (horizontal/landscape mode)
+    isHorizontalMode: false, // True when playing Stage 2 Mobile (horizontal/landscape mode)
+    timeScale: 1.0 // Slow motion multiplier (1.0 = normal speed, 0.3 = slow mo)
 };
 
 // ============================================================================
@@ -1487,6 +1488,7 @@ const PlayerController = {
 
         // Restore game speed
         GameState.gameSpeed = this.savedGameSpeed;
+        GameState.timeScale = 1.0; // Ensure normal time scale
 
         // Stop enemy from running away
         EnemyController.isRunningAway = false;
@@ -1594,10 +1596,22 @@ const PlayerController = {
                         // Don't register hit, continue animation
                     } else {
                         console.log('🎯 Item hit enemy! Distance:', distance, 'Lane distance:', laneDistance.toFixed(2));
+
+                        // SLOW MOTION EFFECT - watch enemy reaction
+                        GameState.timeScale = 0.3; // Slow to 30% speed
+                        console.log('🎬 Slow motion activated!');
+
                         EnemyController.takeDamage();
-                        scene.remove(thrownItem);
-                        // Show "Got em!" text and fade
-                        this.showThrowResult(true);
+
+                        // Hold slow motion for 1.5 seconds to see full reaction
+                        setTimeout(() => {
+                            GameState.timeScale = 1.0; // Restore normal speed
+                            console.log('🎬 Normal speed restored');
+                            scene.remove(thrownItem);
+                            // Show "Got em!" text and fade
+                            this.showThrowResult(true);
+                        }, 1500);
+
                         return;
                     }
                 }
@@ -1625,6 +1639,7 @@ const PlayerController = {
         this.activeThrownItem = null;
         this.throwCameraTimer = 0;
         this.throwResultShown = false;
+        GameState.timeScale = 1.0; // Ensure normal speed is restored
     },
 
     showThrowResult(hit) {
@@ -7208,7 +7223,8 @@ function triggerStageCompletion() {
 function animate() {
     requestAnimationFrame(animate);
 
-    const delta = clock.getDelta();
+    const rawDelta = clock.getDelta();
+    const delta = rawDelta * GameState.timeScale; // Apply slow motion
 
     // Always update animations so they loop smoothly regardless of game state
     if (playerMixer) playerMixer.update(delta);
@@ -7278,10 +7294,10 @@ function animate() {
 
             // Update camera to follow player or thrown item
             if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
-                // Cinematic camera following the thrown item
+                // Cinematic camera following the thrown item - side view at enemy level
                 const item = PlayerController.activeThrownItem;
-                const cameraDistance = 8; // Distance behind item for side perspective
-                const cameraHeight = 2; // Low height for side-view angle
+                const cameraDistance = 10; // Distance to side for wide side perspective
+                const cameraHeight = 0.5; // At enemy eye level for side view
 
                 camera.position.x = item.position.x;
                 camera.position.y = item.position.y + cameraHeight;
