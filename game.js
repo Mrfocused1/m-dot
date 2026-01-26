@@ -4642,6 +4642,30 @@ function loadPlayerCharacter() {
 }
 
 
+// CRITICAL FIX: Single animation finished handler to prevent listener accumulation
+// This handler is set up ONCE and routes to the correct finish method
+function setupPlayerAnimationFinishedHandler() {
+    // Remove any existing listener first (cleanup)
+    if (window._playerAnimationFinishedHandler) {
+        playerMixer.removeEventListener('finished', window._playerAnimationFinishedHandler);
+    }
+
+    // Create named handler function
+    window._playerAnimationFinishedHandler = (e) => {
+        if (e.action === playerAnimations.jump) {
+            PlayerController.finishJump();
+        } else if (e.action === playerAnimations.pickup) {
+            PlayerController.finishPickup();
+        } else if (e.action === playerAnimations.throw) {
+            PlayerController.finishThrow();
+        }
+    };
+
+    // Add listener once
+    playerMixer.addEventListener('finished', window._playerAnimationFinishedHandler);
+    console.log('✅ Player animation finished handler registered (single listener)');
+}
+
 function loadPlayerJumpAnimation() {
     const loader = stage1FBXLoader;
 
@@ -4653,12 +4677,8 @@ function loadPlayerJumpAnimation() {
             playerAnimations.jump.setLoop(THREE.LoopOnce);
             playerAnimations.jump.clampWhenFinished = true;
 
-            // When jump animation finishes, return to run
-            playerMixer.addEventListener('finished', (e) => {
-                if (e.action === playerAnimations.jump) {
-                    PlayerController.finishJump();
-                }
-            });
+            // Ensure handler is set up (idempotent - safe to call multiple times)
+            setupPlayerAnimationFinishedHandler();
 
             console.log('Jump animation loaded');
         }
@@ -4678,12 +4698,8 @@ function loadPlayerPickupAnimation() {
             playerAnimations.pickup.setLoop(THREE.LoopOnce);
             playerAnimations.pickup.clampWhenFinished = true;
 
-            // When pickup animation finishes, return to run
-            playerMixer.addEventListener('finished', (e) => {
-                if (e.action === playerAnimations.pickup) {
-                    PlayerController.finishPickup();
-                }
-            });
+            // Ensure handler is set up (idempotent - safe to call multiple times)
+            setupPlayerAnimationFinishedHandler();
 
             console.log('Pickup animation loaded');
         }
@@ -4721,12 +4737,8 @@ function loadPlayerThrowAnimation() {
             playerAnimations.throw.setLoop(THREE.LoopOnce);
             playerAnimations.throw.clampWhenFinished = true;
 
-            // When throw animation finishes, return to normal run
-            playerMixer.addEventListener('finished', (e) => {
-                if (e.action === playerAnimations.throw) {
-                    PlayerController.finishThrow();
-                }
-            });
+            // Ensure handler is set up (idempotent - safe to call multiple times)
+            setupPlayerAnimationFinishedHandler();
 
             console.log('Throw animation loaded');
         }
