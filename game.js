@@ -1735,6 +1735,16 @@ const PlayerController = {
             this.endThrowCameraFollow();
             this.finishThrow();
 
+            // FORCE reset all throw states to ensure pickups work again
+            this.isThrowing = false;
+            this.hasItem = false;
+            this.isPickingUp = false;
+            GameState.timeScale = 1.0;
+            console.log('🎬 FORCED state reset: isThrowing=false, hasItem=false, isPickingUp=false');
+
+            // Force player back to run animation
+            this.switchToRunAnimation();
+
             // Reset enemy animation back to run (only if not playing death animation)
             if (enemyAnimations.death && enemyAnimations.death.isRunning()) {
                 // Death animation is playing, don't interrupt it
