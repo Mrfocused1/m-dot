@@ -1369,7 +1369,7 @@ const PlayerController = {
     },
 
     startPickup() {
-        if (!playerMixer || !playerAnimations.pickup || this.isPickingUp) return;
+        if (!playerMixer || !playerAnimations.pickup || this.isPickingUp || this.hasItem) return;
 
         console.log('✨ Pickup started!');
         this.isPickingUp = true;
@@ -3429,7 +3429,7 @@ function loadPlayerJumpAnimation() {
 
             playerAnimations.jump = playerMixer.clipAction(clip);
             playerAnimations.jump.setLoop(THREE.LoopOnce);
-            playerAnimations.jump.clampWhenFinished = false;
+            playerAnimations.jump.clampWhenFinished = true;
 
             // When jump animation finishes, return to run
             playerMixer.addEventListener('finished', (e) => {
@@ -3454,7 +3454,7 @@ function loadPlayerPickupAnimation() {
 
             playerAnimations.pickup = playerMixer.clipAction(clip);
             playerAnimations.pickup.setLoop(THREE.LoopOnce);
-            playerAnimations.pickup.clampWhenFinished = false;
+            playerAnimations.pickup.clampWhenFinished = true;
 
             // When pickup animation finishes, return to run
             playerMixer.addEventListener('finished', (e) => {
@@ -3497,7 +3497,7 @@ function loadPlayerThrowAnimation() {
 
             playerAnimations.throw = playerMixer.clipAction(clip);
             playerAnimations.throw.setLoop(THREE.LoopOnce);
-            playerAnimations.throw.clampWhenFinished = false;
+            playerAnimations.throw.clampWhenFinished = true;
 
             // When throw animation finishes, return to normal run
             playerMixer.addEventListener('finished', (e) => {
@@ -5983,7 +5983,34 @@ function removeStepTrackerDashboard() {
 // ============================================================================
 
 function checkCollisions() {
-    if (PlayerController.isInvincible || !playerModel) return;
+    if (!playerModel) return;
+
+    // Check pickup collisions (always check, even when invincible)
+    // Don't pick up if already have an item, picking up, or throwing
+    if (!PlayerController.isPickingUp && !PlayerController.isThrowing && !PlayerController.hasItem) {
+        pickups.forEach(pickup => {
+            if (pickup.active) {
+                const distance = Math.abs(pickup.mesh.position.z - playerModel.position.z);
+                const sameColumn = pickup.lane === PlayerController.targetLane;
+
+                if (distance < 1.5 && sameColumn) {
+                    // Collect pickup
+                    GameState.score += 100;
+                    pickupsCollected++;
+                    console.log(`✨ Pickup collected! +100 (Total: ${pickupsCollected})`);
+
+                    // Play pickup animation
+                    PlayerController.startPickup();
+
+                    // Remove pickup
+                    pickup.deactivate();
+                }
+            }
+        });
+    }
+
+    // Skip damage collisions if invincible
+    if (PlayerController.isInvincible) return;
 
     // Check obstacle collisions (player can jump over obstacles)
     if (!PlayerController.isJumping) {
@@ -6013,27 +6040,6 @@ function checkCollisions() {
             }
         }
     }
-
-    // Check pickup collisions
-    pickups.forEach(pickup => {
-        if (pickup.active) {
-            const distance = Math.abs(pickup.mesh.position.z - playerModel.position.z);
-            const sameColumn = pickup.lane === PlayerController.targetLane;
-
-            if (distance < 1.5 && sameColumn) {
-                // Collect pickup
-                GameState.score += 100;
-                pickupsCollected++;
-                console.log(`✨ Pickup collected! +100 (Total: ${pickupsCollected})`);
-
-                // Play pickup animation
-                PlayerController.startPickup();
-
-                // Remove pickup
-                pickup.deactivate();
-            }
-        }
-    });
 }
 
 function handlePlayerHit() {
