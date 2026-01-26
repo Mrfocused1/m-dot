@@ -1369,6 +1369,7 @@ const PlayerController = {
     isPickingUp: false,
     hasItem: false,
     hasThrown: false, // Track if player has thrown at least once (enables obstacle collision)
+    _autoJumpLoggedOnce: false, // Debug flag
     isThrowing: false,
     savedGameSpeed: 0,
     throwTimeout: null,
@@ -1390,6 +1391,7 @@ const PlayerController = {
         this.isPickingUp = false;
         this.hasItem = false;
         this.hasThrown = false; // Reset throw state for new game
+        this._autoJumpLoggedOnce = false;
         this.isThrowing = false;
         this.savedGameSpeed = 0;
         this.activeThrownItem = null;
@@ -1411,12 +1413,19 @@ const PlayerController = {
         const shouldCheckAutoJump = (GameState.selectedLevel !== 'chase') ||
                                     (GameState.selectedLevel === 'chase' && this.hasThrown);
 
+        // DEBUG: Log auto-jump check status (only once when hasThrown changes)
+        if (this.hasThrown && !this._autoJumpLoggedOnce) {
+            console.log('✅ Auto-jump NOW ENABLED (hasThrown=true)');
+            this._autoJumpLoggedOnce = true;
+        }
+
         if (!this.isJumping && playerModel && shouldCheckAutoJump) {
             this.checkAutoJump();
         }
 
         // Handle lane change input
-        if (Input.touchActive && !Input.inputProcessed && !this.isJumping) {
+        // CRITICAL FIX: Don't allow lane changes during throw or pickup animations
+        if (Input.touchActive && !Input.inputProcessed && !this.isJumping && !this.isThrowing && !this.isPickingUp) {
             if (Input.touchSide === 'LEFT' && this.targetLane > 0) {
                 this.targetLane--;
                 Input.inputProcessed = true;
@@ -1474,12 +1483,17 @@ const PlayerController = {
             if (!obstacle.active) continue;
 
             const sameColumn = obstacle.lane === this.targetLane;
-            // Negative distance = obstacle is ahead
+            // Negative distance = obstacle is ahead (obstacle.z < player.z)
             const distance = obstacle.mesh.position.z - playerModel.position.z;
 
-            // Trigger jump when obstacle is 2-4 units ahead (gives player time to clear it)
-            if (sameColumn && distance < -2.0 && distance > -4.0) {
-                console.log(`🦘 Auto-jump triggered! Obstacle ${distance.toFixed(2)} units ahead`);
+            // DEBUG: Log obstacles in same lane
+            if (sameColumn && distance < 0 && distance > -10) {
+                console.log(`🚧 Obstacle in lane ${this.targetLane}: distance=${distance.toFixed(2)}, player.z=${playerModel.position.z.toFixed(2)}, obstacle.z=${obstacle.mesh.position.z.toFixed(2)}`);
+            }
+
+            // Trigger jump when obstacle is 2-6 units ahead (increased range for better detection)
+            if (sameColumn && distance < -2.0 && distance > -6.0) {
+                console.log(`🦘 Auto-jump triggered! Obstacle ${distance.toFixed(2)} units ahead in lane ${this.targetLane}`);
                 this.startJump();
                 break;
             }
@@ -1755,6 +1769,13 @@ const PlayerController = {
         // Reset all throw-related states
         this.isThrowing = false;
         this.hasItem = false;
+
+        // CRITICAL FIX: Reset Input system to prevent frozen controls
+        Input.touchActive = false;
+        Input.inputProcessed = false;
+        Input.touchSide = null;
+        Input.wasSwipe = false;
+        console.log('🎹 Input system reset after throw');
 
         // Restore game speed (CRITICAL FIX: never restore to 0)
         if (this.savedGameSpeed > 0) {
