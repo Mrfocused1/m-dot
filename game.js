@@ -8015,6 +8015,10 @@ function startGame() {
     if (charactersAlreadyLoaded) {
         // Characters already loaded, start game immediately
         console.log('Stage 1 assets already loaded, starting immediately');
+
+        // Fade out intro animation if present
+        IntroAnimation.complete();
+
         GameState.isRunning = true;
         UI.updateUI();
 
