@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <title>Gap Tag - Get Your Tooth Back!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAP TAG - Get Your Tooth Back!</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -14,52 +13,401 @@
         }
 
         body {
-            overflow: hidden;
-            touch-action: none;
-            background: #000;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow-x: hidden;
+            cursor: none;
         }
 
-        #gameCanvas {
-            display: block;
-            width: 100%;
-            height: 100vh;
+        /* Custom Cursor */
+        .cursor {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #4fc3f7;
+            border-radius: 50%;
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            transition: transform 0.15s ease, width 0.15s ease, height 0.15s ease;
         }
 
-        #ui-overlay {
-            position: absolute;
+        .cursor.hover {
+            width: 50px;
+            height: 50px;
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 10;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .vs-container {
+            text-align: center;
+        }
+
+        .fighter-name {
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            margin: 20px 0;
+        }
+
+        .fighter-name.left {
+            color: #4fc3f7;
+        }
+
+        .fighter-name.right {
+            color: #ff4757;
+        }
+
+        .vs-text {
+            font-size: 6rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            margin: 40px 0;
+        }
+
+        /* Hero Section */
+        .hero {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Spinning Vortex Background */
+        .vortex {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 150%;
+            height: 150%;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle at center,
+                transparent 0%,
+                rgba(79, 195, 247, 0.05) 25%,
+                rgba(255, 71, 87, 0.05) 50%,
+                transparent 75%);
+            animation: spin 20s linear infinite;
+            z-index: 1;
+        }
+
+        @keyframes spin {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Logo Container */
+        .logo-container {
+            position: relative;
+            z-index: 2;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            width: 300px;
+            height: auto;
+        }
+
+        .logo-svg {
+            fill: none;
+            stroke: #4fc3f7;
+            stroke-width: 3;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+        }
+
+        /* Tagline */
+        .tagline {
+            font-size: 1.5rem;
+            color: #fff;
+            text-align: center;
+            margin-bottom: 50px;
+            z-index: 2;
+            position: relative;
+            min-height: 2em;
+        }
+
+        .typed-cursor {
+            opacity: 1;
+            animation: blink 0.7s infinite;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        /* CTA Buttons */
+        .cta-container {
+            display: flex;
+            gap: 30px;
+            z-index: 2;
+            position: relative;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .cta-btn {
+            padding: 18px 45px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            text-decoration: none;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            cursor: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+        }
+
+        .cta-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .cta-btn span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-primary {
+            background: #4fc3f7;
+            color: #000;
+            border: 2px solid #4fc3f7;
+        }
+
+        .cta-primary:hover {
+            background: transparent;
+            color: #4fc3f7;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.3);
+        }
+
+        .cta-secondary {
+            background: transparent;
+            color: #fff;
+            border: 2px solid #fff;
+        }
+
+        .cta-secondary:hover {
+            background: #fff;
+            color: #000;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .fighter-name {
+                font-size: 2rem;
+            }
+
+            .vs-text {
+                font-size: 3rem;
+            }
+
+            .logo {
+                width: 200px;
+            }
+
+            .tagline {
+                font-size: 1.2rem;
+                padding: 0 20px;
+            }
+
+            .cta-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .cta-btn {
+                width: 250px;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="ui-overlay"></div>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.3/build/index.module.js",
-                "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+    <!-- Custom Cursor -->
+    <div class="cursor"></div>
+
+    <!-- Loading Screen -->
+    <div class="loading-screen">
+        <div class="vs-container">
+            <div class="fighter-name left">GAP TAG</div>
+            <div class="vs-text">VS</div>
+            <div class="fighter-name right">TOOTH THIEF</div>
+        </div>
+    </div>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <!-- Spinning Vortex Background -->
+        <div class="vortex"></div>
+
+        <!-- Logo -->
+        <div class="logo-container">
+            <svg class="logo" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
+                <text x="150" y="60" font-family="Arial, sans-serif" font-size="48" font-weight="900" text-anchor="middle" class="logo-svg">GAP TAG</text>
+            </svg>
+        </div>
+
+        <!-- Tagline -->
+        <div class="tagline">
+            <span id="typed-text"></span><span class="typed-cursor">|</span>
+        </div>
+
+        <!-- CTA Buttons -->
+        <div class="cta-container">
+            <a href="game.html" class="cta-btn cta-primary">
+                <span>Play Game</span>
+            </a>
+            <a href="#trailer" class="cta-btn cta-secondary">
+                <span>Watch Trailer</span>
+            </a>
+        </div>
+    </section>
+
+    <script>
+        // Custom Cursor
+        const cursor = document.querySelector('.cursor');
+        const buttons = document.querySelectorAll('.cta-btn');
+
+        document.addEventListener('mousemove', (e) => {
+            gsap.to(cursor, {
+                x: e.clientX,
+                y: e.clientY,
+                duration: 0.15,
+                ease: 'power2.out'
+            });
+        });
+
+        buttons.forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                cursor.classList.add('hover');
+            });
+            btn.addEventListener('mouseleave', () => {
+                cursor.classList.remove('hover');
+            });
+        });
+
+        // Magnetic Button Effect
+        buttons.forEach(btn => {
+            btn.addEventListener('mousemove', (e) => {
+                const rect = btn.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+
+                gsap.to(btn, {
+                    x: x * 0.3,
+                    y: y * 0.3,
+                    duration: 0.3,
+                    ease: 'power2.out'
+                });
+            });
+
+            btn.addEventListener('mouseleave', () => {
+                gsap.to(btn, {
+                    x: 0,
+                    y: 0,
+                    duration: 0.5,
+                    ease: 'elastic.out(1, 0.3)'
+                });
+            });
+        });
+
+        // Loading Screen Animation
+        const tl = gsap.timeline();
+
+        tl.from('.fighter-name.left', {
+            x: -200,
+            opacity: 0,
+            duration: 0.8,
+            ease: 'power3.out'
+        })
+        .from('.vs-text', {
+            scale: 0,
+            opacity: 0,
+            duration: 0.5,
+            ease: 'back.out(1.7)'
+        }, '-=0.3')
+        .from('.fighter-name.right', {
+            x: 200,
+            opacity: 0,
+            duration: 0.8,
+            ease: 'power3.out'
+        }, '-=0.5')
+        .to('.loading-screen', {
+            opacity: 0,
+            duration: 0.5,
+            delay: 1,
+            onComplete: () => {
+                document.querySelector('.loading-screen').style.display = 'none';
+                animateLogo();
+                typeTagline();
             }
+        });
+
+        // Logo SVG Animation
+        function animateLogo() {
+            const logoPath = document.querySelector('.logo-svg');
+            gsap.to(logoPath, {
+                strokeDashoffset: 0,
+                duration: 2,
+                ease: 'power2.inOut',
+                onComplete: () => {
+                    gsap.to(logoPath, {
+                        fill: '#4fc3f7',
+                        duration: 0.5
+                    });
+                }
+            });
+        }
+
+        // Typed Tagline Effect
+        function typeTagline() {
+            const text = "Chase. Dodge. Get your tooth back.";
+            const typedText = document.getElementById('typed-text');
+            let index = 0;
+
+            function type() {
+                if (index < text.length) {
+                    typedText.textContent += text.charAt(index);
+                    index++;
+                    setTimeout(type, 80);
+                }
+            }
+
+            setTimeout(type, 500);
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.1/dist/nipplejs.min.js"></script>
-    <script>
-        // Make libraries globally available for collision implementations
-        import('https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.3/build/index.module.js')
-            .then(module => { window.MeshBVHLib = module; console.log('✅ three-mesh-bvh loaded'); })
-            .catch(() => console.warn('⚠️ three-mesh-bvh failed to load'));
-
-        import('https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js')
-            .then(module => { window.CANNON = module.default || module; console.log('✅ cannon-es loaded'); })
-            .catch(() => console.warn('⚠️ cannon-es failed to load'));
-    </script>
-    <script type="module" src="game.js?v=128"></script>
 </body>
 </html>
