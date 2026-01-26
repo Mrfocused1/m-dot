@@ -1538,6 +1538,9 @@ const PlayerController = {
         this.isFollowingThrowItem = true;
         this.throwCameraTimer = 0;
 
+        // Store the lane (X position) the item was thrown from
+        const throwLaneX = thrownItem.position.x;
+
         // Animate the throw
         const throwSpeed = 40; // Speed of thrown item
         const throwStartZ = thrownItem.position.z;
@@ -1581,12 +1584,22 @@ const PlayerController = {
                 }
 
                 if (distance < 3.5) { // Increased hit detection radius from 2.0 to 3.5
-                    console.log('🎯 Item hit enemy! Distance:', distance);
-                    EnemyController.takeDamage();
-                    scene.remove(thrownItem);
-                    // Show "Got em!" text and fade
-                    this.showThrowResult(true);
-                    return;
+                    // Check if enemy is in the same lane as the thrown item
+                    const enemyX = enemyModel.position.x;
+                    const laneDistance = Math.abs(enemyX - throwLaneX);
+                    const sameLane = laneDistance < 1.5; // Within 1.5 units = same lane
+
+                    if (!sameLane) {
+                        console.log('🎯 Item passed near enemy but different lane - Distance:', distance, 'Lane distance:', laneDistance.toFixed(2), 'MISS');
+                        // Don't register hit, continue animation
+                    } else {
+                        console.log('🎯 Item hit enemy! Distance:', distance, 'Lane distance:', laneDistance.toFixed(2));
+                        EnemyController.takeDamage();
+                        scene.remove(thrownItem);
+                        // Show "Got em!" text and fade
+                        this.showThrowResult(true);
+                        return;
+                    }
                 }
             }
 
@@ -3573,7 +3586,7 @@ class Pickup {
 
         if (wasActive) {
             this.lane = currentLane;
-            this.mesh.position.set(LANE_POSITIONS[this.lane], 1.0, currentZ);
+            this.mesh.position.set(LANE_POSITIONS[this.lane], 0.8, currentZ);  // Raised to sit on ground
             scene.add(this.mesh);
         }
     }
@@ -3581,7 +3594,7 @@ class Pickup {
     activate(lane, zPosition) {
         this.active = true;
         this.lane = lane;
-        this.mesh.position.set(LANE_POSITIONS[lane], 1.0, zPosition);
+        this.mesh.position.set(LANE_POSITIONS[lane], 0.8, zPosition);  // Raised to sit on ground
         scene.add(this.mesh);
     }
 
@@ -3597,6 +3610,9 @@ class Pickup {
 
     update(dt) {
         if (this.active) {
+            // Hide pickups when player already has an item
+            this.mesh.visible = !PlayerController.hasItem;
+
             // Move with the road
             this.mesh.position.z += GameState.gameSpeed * dt;
 
@@ -7243,8 +7259,8 @@ function animate() {
             if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
                 // Cinematic camera following the thrown item
                 const item = PlayerController.activeThrownItem;
-                const cameraDistance = 5; // Distance behind item
-                const cameraHeight = 3; // Height above item
+                const cameraDistance = 8; // Distance behind item (increased to zoom out)
+                const cameraHeight = 5; // Height above item (increased to zoom out)
 
                 camera.position.x = item.position.x;
                 camera.position.y = item.position.y + cameraHeight;
