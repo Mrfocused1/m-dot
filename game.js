@@ -3586,7 +3586,7 @@ class Pickup {
 
         if (wasActive) {
             this.lane = currentLane;
-            this.mesh.position.set(LANE_POSITIONS[this.lane], 0.8, currentZ);  // Raised to sit on ground
+            this.mesh.position.set(LANE_POSITIONS[this.lane], 0.4, currentZ);  // Raised to sit on ground
             scene.add(this.mesh);
         }
     }
@@ -3599,7 +3599,7 @@ class Pickup {
 
         this.active = true;
         this.lane = lane;
-        this.mesh.position.set(LANE_POSITIONS[lane], 0.8, zPosition);  // Raised to sit on ground
+        this.mesh.position.set(LANE_POSITIONS[lane], 0.4, zPosition);  // Raised to sit on ground
         scene.add(this.mesh);
     }
 
@@ -4302,7 +4302,7 @@ function loadColaCanModel() {
 
         // Also use cola can for pickup items on the ground
         pickupModelTemplate = colaCanTemplate.clone();
-        pickupModelTemplate.scale.set(0.8, 0.8, 0.8); // Slightly smaller for pickups on ground
+        pickupModelTemplate.scale.set(0.4, 0.4, 0.4); // Smaller size for pickups on ground
 
         // Replace existing pickups with cola can model
         pickups.forEach(pickup => {
@@ -7285,7 +7285,7 @@ function animate() {
             } else if (playerModel) {
                 // Normal camera following player
                 camera.position.x = playerModel.position.x;
-                camera.position.z = playerModel.position.z + 8;
+                camera.position.z = playerModel.position.z + 5;  // Closer camera for better view of jammer
                 camera.lookAt(playerModel.position.x, playerModel.position.y + 1, playerModel.position.z - 5);
             }
 
