@@ -749,6 +749,7 @@ let playerAnimations = {}; // Store run, jump, pickup, throw animations
 let enemyAnimations = {}; // Store run, lookBehind animations
 let currentPlayerAnimation = null;
 let enemyLookBehindTriggered = false; // Track if look-behind animation has been triggered
+let colaCanTemplate = null; // Template for thrown cola can
 let clock;
 
 // Game world
@@ -1507,16 +1508,25 @@ const PlayerController = {
         // Reset look-behind trigger for this new throw
         enemyLookBehindTriggered = false;
 
-        // Create a golden sphere as the thrown item
-        const geometry = new THREE.SphereGeometry(0.3, 16, 16);
-        const material = new THREE.MeshStandardMaterial({
-            color: 0xffd700,
-            emissive: 0xffd700,
-            emissiveIntensity: 0.5,
-            metalness: 0.8,
-            roughness: 0.2
-        });
-        const thrownItem = new THREE.Mesh(geometry, material);
+        let thrownItem;
+
+        // Use cola can model if available, otherwise fall back to golden sphere
+        if (colaCanTemplate) {
+            thrownItem = colaCanTemplate.clone();
+            console.log('🥤 Throwing cola can');
+        } else {
+            // Fallback: Create a golden sphere as the thrown item
+            const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xffd700,
+                emissive: 0xffd700,
+                emissiveIntensity: 0.5,
+                metalness: 0.8,
+                roughness: 0.2
+            });
+            thrownItem = new THREE.Mesh(geometry, material);
+            console.log('🎯 Throwing sphere (cola can not loaded)');
+        }
 
         // Position at player's hand
         thrownItem.position.copy(playerModel.position);
@@ -4254,6 +4264,28 @@ function createFallbackEnemy() {
     checkStage1AssetsLoaded();
 }
 
+function loadColaCanModel() {
+    const loader = stage1GLTFLoader;
+
+    loader.load('simple_cola_can.glb', (gltf) => {
+        colaCanTemplate = gltf.scene;
+        colaCanTemplate.scale.set(1.5, 1.5, 1.5); // Scale up the can
+
+        // Enable shadows on the can
+        colaCanTemplate.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        console.log('Cola can model loaded');
+    }, undefined, (error) => {
+        console.warn('⚠️ Error loading cola can model:', error);
+        // If can fails to load, thrown item will fall back to sphere
+    });
+}
+
 // ============================================================================
 // SHOOTING GAME - OFFICER CHARACTER
 // ============================================================================
@@ -6971,6 +7003,10 @@ function startGame() {
         // Load enemy character for Level 1 if not already loaded
         if (!enemyModel) {
             loadEnemyCharacter();
+        }
+        // Load cola can for throwing
+        if (!colaCanTemplate) {
+            loadColaCanModel();
         }
 
         // Characters will load asynchronously
