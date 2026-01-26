@@ -862,6 +862,64 @@ const TILE_SIZE = 3;
 const WALL_HEIGHT = 3;
 
 // ============================================================================
+// MUSIC CONTROLLER
+// ============================================================================
+
+const MusicController = {
+    level1Music: null,
+    currentlyPlaying: null,
+
+    init() {
+        this.level1Music = document.getElementById('level1-music');
+        if (this.level1Music) {
+            this.level1Music.volume = 0.5; // Set volume to 50%
+        }
+    },
+
+    playLevel1Music() {
+        if (!this.level1Music) return;
+
+        console.log('🎵 Starting Level 1 music');
+
+        // Stop any currently playing music
+        this.stopAll();
+
+        // Play level 1 music
+        this.level1Music.currentTime = 0; // Start from beginning
+        this.level1Music.play().catch(err => {
+            console.log('Music play failed (user interaction may be required):', err);
+        });
+
+        this.currentlyPlaying = this.level1Music;
+    },
+
+    stopAll() {
+        if (this.level1Music) {
+            this.level1Music.pause();
+            this.level1Music.currentTime = 0;
+        }
+        this.currentlyPlaying = null;
+        console.log('🎵 All music stopped');
+    },
+
+    pause() {
+        if (this.currentlyPlaying) {
+            this.currentlyPlaying.pause();
+            console.log('🎵 Music paused');
+        }
+    },
+
+    resume() {
+        if (this.currentlyPlaying) {
+            this.currentlyPlaying.play().catch(err => {
+                console.log('Music resume failed:', err);
+            });
+            console.log('🎵 Music resumed');
+        }
+    }
+};
+
+// ============================================================================
 // GAME STATE
 // ============================================================================
 
@@ -3780,6 +3838,7 @@ function checkStage1AssetsLoaded() {
     if (playerModel && enemyModel && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
         console.log('✅ Stage 1 characters loaded, starting game');
         GameState.isRunning = true;
+        MusicController.playLevel1Music();
         UI.updateUI();
     }
 }
@@ -6827,6 +6886,7 @@ function startGame() {
         // Characters already loaded, start game immediately
         console.log('Stage 1 assets already loaded, starting immediately');
         GameState.isRunning = true;
+        MusicController.playLevel1Music();
         UI.updateUI();
     } else {
         // Load characters if needed - game will start when both are loaded
@@ -6862,6 +6922,9 @@ function startShootingGame() {
 
     console.log('Starting Animation Testing mode...');
     console.log('Horizontal mode:', GameState.isHorizontalMode);
+
+    // Stop level 1 music when switching to level 2
+    MusicController.stopAll();
 
     // Show Stage 2 loading screen
     Stage2LoadingScreen.show();
@@ -6910,6 +6973,9 @@ function startShootingGame() {
 function gameOver() {
     GameState.screen = 'GAMEOVER';
     GameState.isRunning = false;
+
+    // Stop all music
+    MusicController.stopAll();
 
     if (GameState.score > GameState.highScore) {
         GameState.highScore = GameState.score;
@@ -7279,6 +7345,7 @@ function init() {
     // Initialize systems
     Input.init();
     UI.init();
+    MusicController.init();
     loadHighScore();
     // createCarDashboard(); // Disabled - using position tracker instead
 
