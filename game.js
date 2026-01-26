@@ -1,5 +1,5 @@
 // ============================================================================
-// GAP TAG - 3D Endless Runner (Temple Run Style)
+// MERKLE MAN - 3D Chase & Shoot Game
 // ============================================================================
 
 import * as THREE from 'three';
@@ -6737,10 +6737,10 @@ const UI = {
 
     updateUI() {
         if (GameState.screen === 'START') {
+            // START screen no longer shown - user navigates through index.html and select-stage.html
+            // Keep overlay empty
             this.overlay.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; color: white; text-align: center; padding: clamp(10px, 3vw, 20px); overflow-y: auto;">
-                    <h1 style="font-size: clamp(32px, 8vw, 52px); color: #4fc3f7; margin-bottom: clamp(5px, 1.5vh, 10px);">GAP TAG</h1>
-                    <p style="font-size: clamp(14px, 3.5vw, 18px); margin-bottom: clamp(20px, 4vh, 40px); color: #888;">Get your tooth back!</p>
+                <div style="display: none;"></div>`;
 
                     <h2 style="font-size: clamp(20px, 5vw, 28px); margin-bottom: clamp(15px, 3vh, 30px);">Select Stage</h2>
 
@@ -7355,7 +7355,7 @@ function animate() {
 // ============================================================================
 
 function init() {
-    console.log('Gap Tag 3D - Initializing...');
+    console.log('Merkle Man - Initializing...');
 
     // Create scene
     scene = new THREE.Scene();
@@ -7464,7 +7464,7 @@ function init() {
     // Start animation loop
     animate();
 
-    console.log('Gap Tag 3D - Ready!');
+    console.log('Merkle Man - Ready!');
 }
 
 // ============================================================================
