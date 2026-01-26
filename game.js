@@ -3135,7 +3135,7 @@ const HorizontalControls = {
     },
 
     handleJoystickMove(data) {
-        if (!data || !data.direction) return;
+        if (!data || !data.angle || data.force === undefined) return;
 
         // Get angle in degrees (0 = right, 90 = up, 180 = left, 270 = down)
         const angle = data.angle.degree;
@@ -3146,6 +3146,8 @@ const HorizontalControls = {
             this.handleJoystickEnd();
             return;
         }
+
+        console.log(`[Joystick] angle: ${angle.toFixed(1)}°, force: ${force.toFixed(2)}`);
 
         // Map angle to 8 directions and set MazeController.keysPressed
         // nipplejs angles: 0/360 = right, 90 = up, 180 = left, 270 = down
