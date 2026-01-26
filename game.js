@@ -803,7 +803,15 @@ const MusicController = {
     },
 
     playLevel1Music() {
-        if (!this.level1Music) return;
+        // Re-get the element in case it wasn't available during init
+        if (!this.level1Music) {
+            this.level1Music = document.getElementById('level1-music');
+        }
+
+        if (!this.level1Music) {
+            console.warn('⚠️ Level 1 music element not found');
+            return;
+        }
 
         console.log('🎵 Starting Level 1 music');
 
@@ -814,13 +822,21 @@ const MusicController = {
         // Stop any currently playing music
         this.stopAll();
 
-        // Play level 1 music
+        // Set volume and play level 1 music
+        this.level1Music.volume = 0.5;
         this.level1Music.currentTime = 0; // Start from beginning
-        this.level1Music.play().catch(err => {
-            console.log('Music play failed (user interaction may be required):', err);
-        });
 
-        this.currentlyPlaying = this.level1Music;
+        const playPromise = this.level1Music.play();
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    console.log('🎵 Level 1 music playing');
+                    this.currentlyPlaying = this.level1Music;
+                })
+                .catch(err => {
+                    console.log('🎵 Music autoplay blocked, will play on user interaction:', err);
+                });
+        }
     },
 
     stopAll() {
@@ -1732,15 +1748,36 @@ const EnemyController = {
     },
 
     showVictoryScreen() {
+        console.log('🎉 Showing victory - proceeding to Level 2');
+
+        // Stop Level 1 music
+        MusicController.stopAll();
+
         const overlay = UI.overlay;
         overlay.innerHTML = `
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; text-align: center; background: rgba(0,0,0,0.9);">
-                <h1 style="font-size: 64px; color: #4fc3f7; margin-bottom: 30px;">VICTORY!</h1>
-                <p style="font-size: 28px; margin-bottom: 20px;">You caught the opponent!</p>
-                <p style="font-size: 24px; margin-bottom: 10px;">Score: ${GameState.score}</p>
-                <p style="font-size: 24px; color: #4fc3f7; margin-top: 60px; pointer-events: all; cursor: pointer;" onclick="resetGame()">CLICK TO PLAY AGAIN</p>
+                <h1 style="font-size: clamp(32px, 8vw, 64px); color: #00ff41; margin-bottom: 30px; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 20px rgba(0, 255, 65, 0.8);">MISSION COMPLETE!</h1>
+                <p style="font-size: clamp(18px, 4vw, 28px); margin-bottom: 20px;">You caught the tooth thief!</p>
+                <p style="font-size: clamp(16px, 3.5vw, 24px); margin-bottom: 10px;">Score: ${GameState.score}</p>
+                <p style="font-size: clamp(14px, 3vw, 18px); color: #888; margin-top: 30px; margin-bottom: 20px;">Proceeding to Mission 02...</p>
+                <div style="width: 300px; max-width: 80%; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden;">
+                    <div id="loading-bar-victory" style="width: 0%; height: 100%; background: linear-gradient(90deg, #00ff41, #00f3ff); transition: width 3s linear;"></div>
+                </div>
             </div>
         `;
+
+        // Start loading bar animation
+        setTimeout(() => {
+            const loadingBar = document.getElementById('loading-bar-victory');
+            if (loadingBar) {
+                loadingBar.style.width = '100%';
+            }
+        }, 100);
+
+        // Navigate to Level 2 after 3 seconds
+        setTimeout(() => {
+            window.location.href = 'game.html?level=2';
+        }, 3000);
     },
 
     update(dt) {
@@ -3885,8 +3922,12 @@ function checkStage1AssetsLoaded() {
     if (playerModel && enemyModel && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
         console.log('✅ Stage 1 characters loaded, starting game');
         GameState.isRunning = true;
-        MusicController.playLevel1Music();
         UI.updateUI();
+
+        // Start music after a brief delay to ensure everything is ready
+        setTimeout(() => {
+            MusicController.playLevel1Music();
+        }, 100);
     }
 }
 
@@ -6841,8 +6882,12 @@ function startGame() {
         // Characters already loaded, start game immediately
         console.log('Stage 1 assets already loaded, starting immediately');
         GameState.isRunning = true;
-        MusicController.playLevel1Music();
         UI.updateUI();
+
+        // Start music after a brief delay to ensure everything is ready
+        setTimeout(() => {
+            MusicController.playLevel1Music();
+        }, 100);
     } else {
         // Load characters if needed - game will start when both are loaded
         console.log('Loading Stage 1 characters...');
