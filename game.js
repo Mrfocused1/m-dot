@@ -2456,10 +2456,12 @@ class Obstacle {
         this.mesh.receiveShadow = true;
         this.active = false;
         this.lane = 0;
+        this.type = null; // 'barrier', 'roller', 'grader'
+        this.isMoving = true; // Whether obstacle moves toward player
     }
 
     // Replace placeholder mesh with 3D model
-    replaceWithModel(modelTemplate) {
+    replaceWithModel(modelTemplate, obstacleType) {
         if (!modelTemplate) return;
 
         const wasActive = this.active;
@@ -2473,6 +2475,14 @@ class Obstacle {
 
         // Clone the 3D model
         this.mesh = modelTemplate.clone();
+        this.type = obstacleType;
+
+        // Set movement based on type
+        // Barriers are stationary, vehicles move
+        this.isMoving = (obstacleType !== 'barrier');
+
+        // Rotate horizontally (90 degrees on Y axis)
+        this.mesh.rotation.y = Math.PI / 2;
 
         // Enable shadows on all children
         this.mesh.traverse((child) => {
@@ -2496,8 +2506,16 @@ class Obstacle {
     activate(lane, zPosition, useRandomModel = true) {
         // If we have multiple obstacle models loaded, pick a random one
         if (useRandomModel && obstacleModels.length > 0) {
-            const randomModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
-            this.replaceWithModel(randomModel);
+            const randomIndex = Math.floor(Math.random() * obstacleModels.length);
+            const randomModel = obstacleModels[randomIndex];
+
+            // Determine type based on which model it is
+            let obstacleType = 'unknown';
+            if (randomModel === barrierModelTemplate) obstacleType = 'barrier';
+            else if (randomModel === roadRollerTemplate) obstacleType = 'roller';
+            else if (randomModel === roadGraderTemplate) obstacleType = 'grader';
+
+            this.replaceWithModel(randomModel, obstacleType);
         }
 
         this.lane = lane;
@@ -2514,11 +2532,19 @@ class Obstacle {
     }
 
     update(dt) {
-        if (this.active) {
+        if (this.active && this.isMoving) {
+            // Only moving obstacles (vehicles) move toward player
             this.mesh.position.z += GameState.gameSpeed * dt;
 
             // Remove if behind camera
             if (this.mesh.position.z > 10) {
+                this.deactivate();
+            }
+        }
+        // Stationary obstacles (barriers) don't move, but check if player passed them
+        else if (this.active && !this.isMoving) {
+            // Remove barrier if player is far past it
+            if (playerModel && this.mesh.position.z > playerModel.position.z + 15) {
                 this.deactivate();
             }
         }
@@ -2617,6 +2643,9 @@ const ObstacleManager = {
                 obstacleModels.push(roadGraderTemplate);
                 console.log('✅ Road grader loaded (' + obstacleModels.length + '/3)');
                 console.log('🎮 All obstacle models ready! Game will randomly spawn:', obstacleModels.length, 'types');
+                console.log('  • Concrete barriers (grey) - STATIONARY, horizontal');
+                console.log('  • Road rollers (yellow) - MOVING, horizontal');
+                console.log('  • Road graders (yellow) - MOVING, horizontal');
             },
             (xhr) => {
                 if (xhr.lengthComputable) {
