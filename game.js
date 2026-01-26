@@ -1603,6 +1603,13 @@ const PlayerController = {
         if (this.throwResultShown) return; // Only show once per throw
         this.throwResultShown = true;
 
+        // Clear the throw timeout - we'll handle cleanup in fadeAndReturnToGameplay
+        if (this.throwTimeout) {
+            clearTimeout(this.throwTimeout);
+            this.throwTimeout = null;
+            console.log('🎯 Cleared throw timeout - cinematic sequence will handle cleanup');
+        }
+
         // Create overlay for throw result
         const overlay = document.createElement('div');
         overlay.id = 'throw-result-overlay';
@@ -1649,6 +1656,8 @@ const PlayerController = {
     },
 
     fadeAndReturnToGameplay(resultOverlay) {
+        console.log('🎬 Starting fade and return to gameplay sequence');
+
         // Create black fade overlay
         const fadeOverlay = document.createElement('div');
         fadeOverlay.style.cssText = `
@@ -1672,6 +1681,8 @@ const PlayerController = {
 
         // After fade to black, clean up and return to gameplay
         setTimeout(() => {
+            console.log('🎬 Fade to black complete - cleaning up and returning to gameplay');
+
             // Remove result text
             if (resultOverlay && resultOverlay.parentNode) {
                 resultOverlay.parentNode.removeChild(resultOverlay);
@@ -1681,15 +1692,19 @@ const PlayerController = {
             this.endThrowCameraFollow();
             this.finishThrow();
 
+            console.log('🎬 States after cleanup: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp + ', gameSpeed=' + GameState.gameSpeed);
+
             // Fade back in
             setTimeout(() => {
                 fadeOverlay.style.opacity = '0';
+                console.log('🎬 Fading back in - gameplay should resume');
 
                 // Remove fade overlay after transition
                 setTimeout(() => {
                     if (fadeOverlay && fadeOverlay.parentNode) {
                         fadeOverlay.parentNode.removeChild(fadeOverlay);
                     }
+                    console.log('🎬 Fade sequence complete - back to normal gameplay');
                 }, 500);
             }, 100);
         }, 500);
@@ -6566,6 +6581,7 @@ function checkCollisions() {
                 const sameColumn = pickup.lane === PlayerController.targetLane;
 
                 if (distance < 1.5 && sameColumn) {
+                    console.log('✨ Pickup collision detected! Starting pickup animation');
                     // Collect pickup
                     GameState.score += 100;
                     pickupsCollected++;
