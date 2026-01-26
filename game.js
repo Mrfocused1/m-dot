@@ -3592,6 +3592,11 @@ class Pickup {
     }
 
     activate(lane, zPosition) {
+        // Replace with cola can model if available and not already replaced
+        if (pickupModelTemplate && this.mesh.geometry && this.mesh.geometry.type === 'SphereGeometry') {
+            this.replaceWithModel(pickupModelTemplate);
+        }
+
         this.active = true;
         this.lane = lane;
         this.mesh.position.set(LANE_POSITIONS[lane], 0.8, zPosition);  // Raised to sit on ground
@@ -4295,7 +4300,16 @@ function loadColaCanModel() {
             }
         });
 
-        console.log('Cola can model loaded');
+        // Also use cola can for pickup items on the ground
+        pickupModelTemplate = colaCanTemplate.clone();
+        pickupModelTemplate.scale.set(0.8, 0.8, 0.8); // Slightly smaller for pickups on ground
+
+        // Replace existing pickups with cola can model
+        pickups.forEach(pickup => {
+            pickup.replaceWithModel(pickupModelTemplate);
+        });
+
+        console.log('Cola can model loaded for throws and pickups');
     }, undefined, (error) => {
         console.warn('⚠️ Error loading cola can model:', error);
         // If can fails to load, thrown item will fall back to sphere
