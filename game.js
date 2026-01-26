@@ -2549,10 +2549,11 @@ class Obstacle {
 
     update(dt) {
         if (this.active) {
-            // Barriers are stationary - they don't move independently
-            // They appear to scroll because the camera is fixed and road moves
+            // Barriers scroll with the road (same speed as road)
+            const roadSpeed = GameState.gameSpeed * 2.5;
+            this.mesh.position.z += roadSpeed * dt;
 
-            // Remove barriers that are too far behind the camera
+            // Remove barriers that passed the camera
             if (this.mesh.position.z > 20) {
                 this.deactivate();
             }
