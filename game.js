@@ -6669,84 +6669,99 @@ const UI = {
     updateUI() {
         if (GameState.screen === 'START') {
             this.overlay.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; text-align: center; padding: 20px;">
-                    <h1 style="font-size: 52px; color: #4fc3f7; margin-bottom: 10px;">GAP TAG</h1>
-                    <p style="font-size: 18px; margin-bottom: 40px; color: #888;">Get your tooth back!</p>
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; color: white; text-align: center; padding: clamp(10px, 3vw, 20px); overflow-y: auto;">
+                    <h1 style="font-size: clamp(32px, 8vw, 52px); color: #4fc3f7; margin-bottom: clamp(5px, 1.5vh, 10px);">GAP TAG</h1>
+                    <p style="font-size: clamp(14px, 3.5vw, 18px); margin-bottom: clamp(20px, 4vh, 40px); color: #888;">Get your tooth back!</p>
 
-                    <h2 style="font-size: 28px; margin-bottom: 30px;">Select Stage</h2>
+                    <h2 style="font-size: clamp(20px, 5vw, 28px); margin-bottom: clamp(15px, 3vh, 30px);">Select Stage</h2>
 
-                    <div style="display: flex; gap: 30px; flex-wrap: wrap; justify-content: center;">
+                    <div style="display: flex; gap: clamp(15px, 3vw, 30px); flex-wrap: wrap; justify-content: center; max-width: 1200px; width: 100%;">
                         <!-- Level 1: Chase the Opp -->
                         <div onclick="selectLevel('chase')" style="
-                            width: 250px;
-                            padding: 30px;
+                            width: 100%;
+                            max-width: 250px;
+                            min-width: 200px;
+                            padding: clamp(20px, 4vw, 30px);
                             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                             border-radius: 15px;
                             cursor: pointer;
                             transition: transform 0.2s, box-shadow 0.2s;
                             pointer-events: all;
                             border: 3px solid transparent;
+                            box-sizing: border-box;
                         " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 10px 30px rgba(102,126,234,0.5)'"
-                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
-                            <div style="font-size: 40px; margin-bottom: 15px;">🏃</div>
-                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 1</h3>
-                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Chase the enemy while dodging obstacles!</p>
-                            <div style="font-size: 11px; color: #ccc; margin-bottom: 15px; opacity: 0.8;">
+                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'"
+                           ontouchstart="this.style.transform='scale(0.98)'"
+                           ontouchend="this.style.transform='scale(1)'">
+                            <div style="font-size: clamp(32px, 6vw, 40px); margin-bottom: clamp(10px, 2vh, 15px);">🏃</div>
+                            <h3 style="font-size: clamp(18px, 4vw, 24px); margin-bottom: clamp(8px, 1.5vh, 10px); color: white;">Stage 1</h3>
+                            <p style="font-size: clamp(12px, 2.5vw, 14px); color: #ddd; margin-bottom: clamp(10px, 2vh, 15px); line-height: 1.4;">Chase the enemy while dodging obstacles!</p>
+                            <div style="font-size: clamp(10px, 2vw, 11px); color: #ccc; margin-bottom: clamp(10px, 2vh, 15px); opacity: 0.8;">
                                 ⌨️ Arrow L/R or Click L/R
                             </div>
-                            <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
-                                <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
+                            <div style="background: rgba(255,255,255,0.2); padding: clamp(6px, 1.5vw, 8px) clamp(12px, 3vw, 16px); border-radius: 20px; display: inline-block;">
+                                <span style="font-size: clamp(11px, 2.2vw, 12px); font-weight: bold;">▶ PLAY NOW</span>
                             </div>
                         </div>
 
                         <!-- Level 2: Tunnel Scene -->
                         <div onclick="selectLevel('shoot')" style="
-                            width: 250px;
-                            padding: 30px;
+                            width: 100%;
+                            max-width: 250px;
+                            min-width: 200px;
+                            padding: clamp(20px, 4vw, 30px);
                             background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
                             border-radius: 15px;
                             cursor: pointer;
                             transition: transform 0.2s, box-shadow 0.2s;
                             pointer-events: all;
                             border: 3px solid transparent;
+                            box-sizing: border-box;
                         " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 10px 30px rgba(33,150,243,0.5)'"
-                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
-                            <div style="font-size: 40px; margin-bottom: 15px;">🚗</div>
-                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 2</h3>
-                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Walk through the tunnel scene!</p>
-                            <div style="font-size: 11px; color: #ccc; margin-bottom: 15px; opacity: 0.8;">
+                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'"
+                           ontouchstart="this.style.transform='scale(0.98)'"
+                           ontouchend="this.style.transform='scale(1)'">
+                            <div style="font-size: clamp(32px, 6vw, 40px); margin-bottom: clamp(10px, 2vh, 15px);">🚗</div>
+                            <h3 style="font-size: clamp(18px, 4vw, 24px); margin-bottom: clamp(8px, 1.5vh, 10px); color: white;">Stage 2</h3>
+                            <p style="font-size: clamp(12px, 2.5vw, 14px); color: #ddd; margin-bottom: clamp(10px, 2vh, 15px); line-height: 1.4;">Walk through the tunnel scene!</p>
+                            <div style="font-size: clamp(10px, 2vw, 11px); color: #ccc; margin-bottom: clamp(10px, 2vh, 15px); opacity: 0.8;">
                                 ⌨️ Arrow Keys • Space/Click to Shoot
                             </div>
-                            <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
-                                <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
+                            <div style="background: rgba(255,255,255,0.2); padding: clamp(6px, 1.5vw, 8px) clamp(12px, 3vw, 16px); border-radius: 20px; display: inline-block;">
+                                <span style="font-size: clamp(11px, 2.2vw, 12px); font-weight: bold;">▶ PLAY NOW</span>
                             </div>
                         </div>
 
                         <!-- Level 2 Mobile: Tunnel Scene with Touch Controls -->
                         <div onclick="selectLevel('shoot-horizontal')" style="
-                            width: 250px;
-                            padding: 30px;
+                            width: 100%;
+                            max-width: 250px;
+                            min-width: 200px;
+                            padding: clamp(20px, 4vw, 30px);
                             background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
                             border-radius: 15px;
                             cursor: pointer;
                             transition: transform 0.2s, box-shadow 0.2s;
                             pointer-events: all;
                             border: 3px solid transparent;
+                            box-sizing: border-box;
                         " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 10px 30px rgba(76,175,80,0.5)'"
-                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
-                            <div style="font-size: 40px; margin-bottom: 15px;">📱</div>
-                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 2 Mobile</h3>
-                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Tunnel scene with touch joystick!</p>
-                            <div style="font-size: 11px; color: #ccc; margin-bottom: 15px; opacity: 0.8;">
+                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'"
+                           ontouchstart="this.style.transform='scale(0.98)'"
+                           ontouchend="this.style.transform='scale(1)'">
+                            <div style="font-size: clamp(32px, 6vw, 40px); margin-bottom: clamp(10px, 2vh, 15px);">📱</div>
+                            <h3 style="font-size: clamp(18px, 4vw, 24px); margin-bottom: clamp(8px, 1.5vh, 10px); color: white;">Stage 2 Mobile</h3>
+                            <p style="font-size: clamp(12px, 2.5vw, 14px); color: #ddd; margin-bottom: clamp(10px, 2vh, 15px); line-height: 1.4;">Tunnel scene with touch joystick!</p>
+                            <div style="font-size: clamp(10px, 2vw, 11px); color: #ccc; margin-bottom: clamp(10px, 2vh, 15px); opacity: 0.8;">
                                 🕹️ Joystick + Buttons
                             </div>
-                            <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
-                                <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
+                            <div style="background: rgba(255,255,255,0.2); padding: clamp(6px, 1.5vw, 8px) clamp(12px, 3vw, 16px); border-radius: 20px; display: inline-block;">
+                                <span style="font-size: clamp(11px, 2.2vw, 12px); font-weight: bold;">▶ PLAY NOW</span>
                             </div>
                         </div>
                     </div>
 
-                    <p style="font-size: 14px; color: #888; margin-top: 40px;">Desktop & Mobile Compatible • Press H for help in-game</p>
+                    <p style="font-size: clamp(11px, 2.5vw, 14px); color: #888; margin-top: clamp(20px, 4vh, 40px); padding: 0 10px;">Desktop & Mobile Compatible • Press H for help in-game</p>
                 </div>
             `;
         } else if (GameState.screen === 'PLAYING') {
