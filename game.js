@@ -1372,6 +1372,12 @@ const PlayerController = {
         console.log('✨ Pickup started!');
         this.isPickingUp = true;
 
+        // If pickup interrupts a jump, clear jumping state so movement isn't blocked
+        if (this.isJumping) {
+            console.log('✨ Pickup interrupted jump - clearing jump state');
+            this.isJumping = false;
+        }
+
         // Fade out current animation
         const currentAnim = playerAnimations[currentPlayerAnimation];
         if (currentAnim) {
@@ -1399,6 +1405,12 @@ const PlayerController = {
 
         console.log('🎯 Throw started!');
         this.isThrowing = true;
+
+        // If throw interrupts a jump, clear jumping state so movement isn't blocked
+        if (this.isJumping) {
+            console.log('🎯 Throw interrupted jump - clearing jump state');
+            this.isJumping = false;
+        }
 
         // Fade out current animation
         const currentAnim = playerAnimations[currentPlayerAnimation];
