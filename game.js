@@ -788,6 +788,37 @@ const LANE_WIDTH = 3;
 const LANE_POSITIONS = [-LANE_WIDTH, 0, LANE_WIDTH];
 const GAME_SPEED = 15;
 
+// Pickup control
+let pickupsEnabled = false; // Will be enabled 2 seconds after game starts
+
+// Loading progress tracking (for preload mode)
+const loadingProgress = {
+    playerModel: false,
+    enemyModel: false,
+    colaCanModel: false,
+    skyDome: false,
+
+    update() {
+        const total = 4;
+        const loaded = (this.playerModel ? 1 : 0) +
+                      (this.enemyModel ? 1 : 0) +
+                      (this.colaCanModel ? 1 : 0) +
+                      (this.skyDome ? 1 : 0);
+        const progress = Math.round((loaded / total) * 100);
+
+        // Send progress to parent window if in preload mode
+        const urlParams = new URLSearchParams(window.location.search);
+        const isPreloading = urlParams.get('preload') === 'true';
+        if (isPreloading && window.parent) {
+            window.parent.postMessage({
+                type: 'GAME_LOAD_PROGRESS',
+                progress: progress
+            }, '*');
+            console.log(`📦 Loading progress: ${progress}% (${loaded}/${total} assets)`);
+        }
+    }
+};
+
 // Help overlay
 let helpOverlayVisible = false;
 
@@ -884,34 +915,56 @@ const MusicController = {
             return;
         }
 
-        console.log('🎵 Starting Level 1 music');
+        console.log('🎵 Starting Level 1 music - game is now visible');
 
-        // Stop intro music if it's playing
+        // Function to start Level 1 music after intro stops
+        const startLevel1Music = () => {
+            // Set volume and play level 1 music
+            this.level1Music.volume = 0.5;
+            this.level1Music.currentTime = 0; // Start from beginning
+
+            const playPromise = this.level1Music.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log('🎵 Level 1 music playing');
+                        this.currentlyPlaying = this.level1Music;
+                        this.pendingPlay = null;
+                    })
+                    .catch(err => {
+                        console.log('🎵 Music autoplay blocked, will play on user interaction:', err);
+                        // Store reference to play on first user interaction
+                        this.pendingPlay = this.level1Music;
+                        this.addInteractionListeners();
+                    });
+            }
+        };
+
+        // Stop intro music if it's still playing from loading screen
+        const introMusic = document.getElementById('intro-music');
+        if (introMusic && !introMusic.paused) {
+            console.log('🎵 Stopping intro music (fading out)');
+            // Fade out intro music smoothly
+            const fadeOut = setInterval(() => {
+                if (introMusic.volume > 0.05) {
+                    introMusic.volume -= 0.05;
+                } else {
+                    introMusic.pause();
+                    introMusic.currentTime = 0;
+                    clearInterval(fadeOut);
+                    console.log('🎵 Intro music stopped completely');
+
+                    // NOW start Level 1 music after intro is fully stopped
+                    startLevel1Music();
+                }
+            }, 50);
+        } else {
+            // No intro music playing, start Level 1 immediately
+            startLevel1Music();
+        }
+
         sessionStorage.removeItem('introMusicPlaying');
         sessionStorage.removeItem('introMusicTime');
-
-        // Stop any currently playing music
-        this.stopAll();
-
-        // Set volume and play level 1 music
-        this.level1Music.volume = 0.5;
-        this.level1Music.currentTime = 0; // Start from beginning
-
-        const playPromise = this.level1Music.play();
-        if (playPromise !== undefined) {
-            playPromise
-                .then(() => {
-                    console.log('🎵 Level 1 music playing');
-                    this.currentlyPlaying = this.level1Music;
-                    this.pendingPlay = null;
-                })
-                .catch(err => {
-                    console.log('🎵 Music autoplay blocked, will play on user interaction:', err);
-                    // Store reference to play on first user interaction
-                    this.pendingPlay = this.level1Music;
-                    this.addInteractionListeners();
-                });
-        }
     },
 
     stopAll() {
@@ -960,7 +1013,8 @@ const GameState = {
     selectedLevel: null, // 'chase', 'shoot', or 'shoot-horizontal'
     stageCompleted: false, // Track if player reached the end
     isHorizontalMode: false, // True when playing Stage 2 Mobile (horizontal/landscape mode)
-    timeScale: 1.0 // Slow motion multiplier (1.0 = normal speed, 0.3 = slow mo)
+    timeScale: 1.0, // Slow motion multiplier (1.0 = normal speed, 0.3 = slow mo)
+    stageFrozen: false // True when stage should stop moving (during enemy fall animation)
 };
 
 // ============================================================================
@@ -1260,6 +1314,7 @@ const PlayerController = {
     pickupTimeout: null,
     activeThrownItem: null, // Reference to the currently thrown item
     isFollowingThrowItem: false, // Camera follow state
+    isFollowingEnemyReaction: false, // Camera close-up on enemy hit reaction
     throwCameraTimer: 0, // Timer for camera follow duration
     throwResultShown: false, // Whether we've shown the throw result text
 
@@ -1277,6 +1332,7 @@ const PlayerController = {
         this.savedGameSpeed = 0;
         this.activeThrownItem = null;
         this.isFollowingThrowItem = false;
+        this.isFollowingEnemyReaction = false;
         this.throwCameraTimer = 0;
         this.throwResultShown = false;
         // Clear any existing throw timeout
@@ -1589,7 +1645,9 @@ const PlayerController = {
         // Use cola can model if available, otherwise fall back to golden sphere
         if (colaCanTemplate) {
             thrownItem = colaCanTemplate.clone();
-            console.log('🥤 Throwing cola can');
+            // REDUCED SIZE: Scale down to 0.8 instead of 1.5 (less obtrusive, easier to see enemy)
+            thrownItem.scale.set(0.8, 0.8, 0.8);
+            console.log('🥤 Throwing cola can (scale: 0.8)');
         } else {
             // Fallback: Create a golden sphere as the thrown item
             const geometry = new THREE.SphereGeometry(0.3, 16, 16);
@@ -1671,22 +1729,56 @@ const PlayerController = {
                     } else {
                         console.log('🎯 Item hit enemy! Distance:', distance, 'Lane distance:', laneDistance.toFixed(2));
 
+                        // VANISH THE CAN IMMEDIATELY - remove from scene
+                        scene.remove(thrownItem);
+                        console.log('💨 Can vanished on impact');
+
+                        // HIDE ALL PICKUPS ON THE GROUND
+                        pickups.forEach(pickup => {
+                            if (pickup.mesh) {
+                                pickup.mesh.visible = false;
+                            }
+                        });
+                        console.log('👻 All pickups hidden');
+
+                        // STOP STAGE MOVEMENT COMPLETELY
+                        GameState.gameSpeed = 0;
+                        GameState.stageFrozen = true; // New flag to prevent stage updates
+                        console.log('🛑 Stage movement frozen');
+
                         // SLOW MOTION EFFECT - watch enemy death reaction
                         GameState.timeScale = 0.3; // Slow to 30% speed
                         console.log('🎬 Slow motion activated!');
+
+                        // Switch camera focus to ENEMY (not the can)
+                        this.activeThrownItem = null; // Stop following can
+                        this.isFollowingEnemyReaction = true; // New flag for enemy close-up
+                        console.log('📷 Camera switched to enemy close-up');
 
                         EnemyController.takeDamage();
 
                         // Hold slow motion for 3 seconds to see full death animation
                         setTimeout(() => {
                             GameState.timeScale = 1.0; // Restore normal speed
+                            GameState.stageFrozen = false; // Unfreeze stage
                             console.log('🎬 Normal speed restored');
-                            scene.remove(thrownItem);
+                            console.log('▶️ Stage movement resumed');
+
+                            this.isFollowingEnemyReaction = false; // End enemy close-up
+
+                            // Show all pickups again
+                            pickups.forEach(pickup => {
+                                if (pickup.mesh && pickup.active) {
+                                    pickup.mesh.visible = true;
+                                }
+                            });
+                            console.log('👁️ Pickups visible again');
+
                             // Show "Got em!" text and fade
                             this.showThrowResult(true);
                         }, 3000);
 
-                        return;
+                        return; // STOP animation loop - can hit!
                     }
                 }
             }
@@ -1710,10 +1802,12 @@ const PlayerController = {
     endThrowCameraFollow() {
         console.log('📷 Ending throw camera follow');
         this.isFollowingThrowItem = false;
+        this.isFollowingEnemyReaction = false;
         this.activeThrownItem = null;
         this.throwCameraTimer = 0;
         this.throwResultShown = false;
         GameState.timeScale = 1.0; // Ensure normal speed is restored
+        GameState.stageFrozen = false; // Ensure stage is unfrozen
     },
 
     showThrowResult(hit) {
@@ -1952,7 +2046,7 @@ const EnemyController = {
         overlay.innerHTML = `
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; text-align: center; background: rgba(0,0,0,0.9);">
                 <h1 style="font-size: clamp(32px, 8vw, 64px); color: #00ff41; margin-bottom: 30px; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 20px rgba(0, 255, 65, 0.8);">MISSION COMPLETE!</h1>
-                <p style="font-size: clamp(18px, 4vw, 28px); margin-bottom: 20px;">You caught the tooth thief!</p>
+                <p style="font-size: clamp(18px, 4vw, 28px); margin-bottom: 20px;">You caught Soundboy!</p>
                 <p style="font-size: clamp(16px, 3.5vw, 24px); margin-bottom: 10px;">Score: ${GameState.score}</p>
                 <p style="font-size: clamp(14px, 3vw, 18px); color: #888; margin-top: 30px; margin-bottom: 20px;">Proceeding to Mission 02...</p>
                 <div style="width: 300px; max-width: 80%; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden;">
@@ -4247,6 +4341,10 @@ const EnvironmentManager = {
                 console.log('   Visible:', skyDome.visible);
                 console.log('   In scene:', scene.children.includes(skyDome));
                 console.log('💡 Access via window.skyDome in console');
+
+                // Track loading progress
+                loadingProgress.skyDome = true;
+                loadingProgress.update();
             },
             // onProgress
             (xhr) => {
@@ -4260,6 +4358,10 @@ const EnvironmentManager = {
                 console.error('❌ Error loading sky dome:', error);
                 console.error('   Path: sky_dome_demo.glb');
                 console.log('   Falling back to solid color background');
+
+                // Still mark as loaded to not block progress
+                loadingProgress.skyDome = true;
+                loadingProgress.update();
             }
         );
     }
@@ -4276,10 +4378,24 @@ function checkStage1AssetsLoaded() {
         GameState.isRunning = true;
         UI.updateUI();
 
-        // Start music after a brief delay to ensure everything is ready
-        setTimeout(() => {
-            MusicController.playLevel1Music();
-        }, 100);
+        // If in preload mode, notify parent window
+        const urlParams = new URLSearchParams(window.location.search);
+        const isPreloading = urlParams.get('preload') === 'true';
+        if (isPreloading && window.parent) {
+            console.log('📡 Sending GAME_FULLY_LOADED message to parent');
+            window.parent.postMessage({ type: 'GAME_FULLY_LOADED' }, '*');
+        } else {
+            // Normal game start - enable pickups after 2 seconds
+            setTimeout(() => {
+                pickupsEnabled = true;
+                console.log('✅ Pickups enabled - player can now collect items');
+            }, 2000);
+
+            // Start music after a brief delay to ensure everything is ready
+            setTimeout(() => {
+                MusicController.playLevel1Music();
+            }, 100);
+        }
     }
 }
 
@@ -4314,6 +4430,10 @@ function loadPlayerCharacter() {
         }
 
         console.log('Player character loaded');
+
+        // Track loading progress
+        loadingProgress.playerModel = true;
+        loadingProgress.update();
 
         // Load jump, pickup, holding, and throw animations
         loadPlayerJumpAnimation();
@@ -4541,6 +4661,10 @@ function loadEnemyCharacter() {
 
         console.log('Enemy character loaded');
 
+        // Track loading progress
+        loadingProgress.enemyModel = true;
+        loadingProgress.update();
+
         // Check if both characters are loaded to start game
         checkStage1AssetsLoaded();
     }, undefined, (error) => {
@@ -4588,9 +4712,16 @@ function loadColaCanModel() {
         });
 
         console.log('Cola can model loaded for throws and pickups');
+
+        // Track loading progress
+        loadingProgress.colaCanModel = true;
+        loadingProgress.update();
     }, undefined, (error) => {
         console.warn('⚠️ Error loading cola can model:', error);
         // If can fails to load, thrown item will fall back to sphere
+        // Still mark as loaded to not block progress
+        loadingProgress.colaCanModel = true;
+        loadingProgress.update();
     });
 }
 
@@ -6966,9 +7097,9 @@ function removeStepTrackerDashboard() {
 function checkCollisions() {
     if (!playerModel) return;
 
-    // Check pickup collisions (always check, even when invincible)
-    // Don't pick up if already have an item, picking up, or throwing
-    if (!PlayerController.isPickingUp && !PlayerController.isThrowing && !PlayerController.hasItem) {
+    // Check pickup collisions (only if pickups are enabled)
+    // Don't pick up if already have an item, picking up, throwing, or pickups disabled
+    if (pickupsEnabled && !PlayerController.isPickingUp && !PlayerController.isThrowing && !PlayerController.hasItem) {
         pickups.forEach(pickup => {
             if (pickup.active) {
                 // Use actual position-based collision for reliable pickup detection
@@ -7290,6 +7421,7 @@ function startGame() {
     GameState.isRunning = false; // Keep game paused until loading completes
     GameState.score = 0;
     GameState.lives = 3;
+    GameState.stageFrozen = false; // Ensure stage is not frozen at start
     PlayerController.init();
     EnemyController.init();
     ObstacleManager.reset();
@@ -7303,6 +7435,12 @@ function startGame() {
         console.log('Stage 1 assets already loaded, starting immediately');
         GameState.isRunning = true;
         UI.updateUI();
+
+        // Enable pickups after 2 seconds (game is now visible)
+        setTimeout(() => {
+            pickupsEnabled = true;
+            console.log('✅ Pickups enabled - player can now collect items');
+        }, 2000);
 
         // Start music after a brief delay to ensure everything is ready
         setTimeout(() => {
@@ -7561,25 +7699,43 @@ function animate() {
             // CHASE MODE logic
             PlayerController.update(delta);
             EnemyController.update(delta);
-            ObstacleManager.update(delta);
-            PickupManager.update(delta);
-            EnvironmentManager.update(delta);
+
+            // Only update stage elements if not frozen (during enemy fall animation)
+            if (!GameState.stageFrozen) {
+                ObstacleManager.update(delta);
+                PickupManager.update(delta);
+                EnvironmentManager.update(delta);
+            }
+
             checkCollisions();
 
-            // Update camera to follow player or thrown item
-            if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
-                // Cinematic camera - TRUE SIDE VIEW to see can hit enemy
+            // Update camera to follow player, thrown item, or enemy reaction
+            if (PlayerController.isFollowingEnemyReaction && enemyModel) {
+                // ENEMY HIT REACTION CLOSE-UP - zoom in on enemy
+                const enemy = enemyModel;
+                const closeUpDistance = 5; // Much closer to enemy
+                const sideOffset = 3; // Slightly to side for better angle
+                const cameraHeight = 2; // At chest/face level
+
+                camera.position.x = enemy.position.x + sideOffset;
+                camera.position.y = enemy.position.y + cameraHeight;
+                camera.position.z = enemy.position.z + closeUpDistance; // Behind enemy, looking forward
+
+                // Look at enemy's upper body/face
+                camera.lookAt(enemy.position.x, enemy.position.y + 1.5, enemy.position.z);
+            } else if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
+                // Cinematic camera - SIDE VIEW to see can traveling toward enemy
                 const item = PlayerController.activeThrownItem;
-                const sideOffset = 8; // Distance to the side (left/right)
-                const cameraHeight = 1.0; // At enemy eye level for side view
-                const depthOffset = 3; // Slightly behind item to see both can and enemy
+                const sideOffset = 6; // Reduced from 8 - closer to see enemy better
+                const cameraHeight = 1.5; // Slightly higher view
+                const depthOffset = 2; // Closer to capture both can and enemy
 
                 camera.position.x = item.position.x + sideOffset; // Move camera to the SIDE
                 camera.position.y = item.position.y + cameraHeight;
                 camera.position.z = item.position.z + depthOffset; // Slightly behind to capture both
 
-                // Look at the item (can see it travel to enemy from side)
-                camera.lookAt(item.position.x, item.position.y, item.position.z - 5);
+                // Look slightly ahead of item to see enemy in frame
+                camera.lookAt(item.position.x, item.position.y, item.position.z - 8);
             } else if (playerModel) {
                 // Normal camera following player
                 camera.position.x = playerModel.position.x;
@@ -7785,6 +7941,21 @@ function init() {
     loadHighScore();
     // createCarDashboard(); // Disabled - using position tracker instead
 
+    // Continue intro music from loading screen (will be stopped when game starts)
+    const introMusicTime = sessionStorage.getItem('introMusicTime');
+    if (introMusicTime !== null) {
+        const introMusic = document.getElementById('intro-music');
+        if (introMusic) {
+            introMusic.currentTime = parseFloat(introMusicTime);
+            introMusic.volume = 0.5;
+            introMusic.play().then(() => {
+                console.log('🎵 Intro music continuing from loading screen');
+            }).catch(err => {
+                console.log('🎵 Intro music play failed (autoplay blocked):', err);
+            });
+        }
+    }
+
     // Check URL parameters - auto-start Animation Testing if collision version specified
     const urlParams = new URLSearchParams(window.location.search);
     let collisionVersion = urlParams.get('v') || urlParams.get('version');
@@ -7825,6 +7996,28 @@ function init() {
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    // Check if this is a preload (loading in background iframe)
+    const preloadParam = urlParams.get('preload');
+    const isPreloading = preloadParam === 'true';
+
+    if (isPreloading) {
+        console.log('🔄 Preloading game assets in background...');
+        // Preload mode: just load assets, don't start game
+        const levelParam = urlParams.get('level');
+        if (levelParam === '1') {
+            // Preload Level 1 assets
+            GameState.selectedLevel = 'chase';
+            if (!playerModel) loadPlayerCharacter();
+            if (!enemyModel) loadEnemyCharacter();
+            if (!colaCanTemplate) loadColaCanModel();
+            // Sky dome already loaded by EnvironmentManager.init()
+        }
+        // Start animation loop but don't show UI
+        animate();
+        console.log('✅ Preload started - assets loading in background');
+        return;
+    }
 
     // Check for level parameter and auto-start the game
     const levelParam = urlParams.get('level');
