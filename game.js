@@ -4388,7 +4388,6 @@ function checkStage1AssetsLoaded() {
             // Normal game start - enable pickups after 2 seconds
             setTimeout(() => {
                 pickupsEnabled = true;
-                console.log('✅ Pickups enabled - player can now collect items');
             }, 2000);
 
             // Start music after a brief delay to ensure everything is ready
@@ -7439,7 +7438,6 @@ function startGame() {
         // Enable pickups after 2 seconds (game is now visible)
         setTimeout(() => {
             pickupsEnabled = true;
-            console.log('✅ Pickups enabled - player can now collect items');
         }, 2000);
 
         // Start music after a brief delay to ensure everything is ready
