@@ -916,7 +916,7 @@ let scene, camera, renderer;
 let player, enemy;
 let playerMixer, enemyMixer;
 let playerModel, enemyModel;
-let playerAnimations = {}; // Store run, turnRight animations
+let playerAnimations = {}; // Store run, turnLeft animations
 let currentPlayerAnimation = null;
 let clock;
 
@@ -1307,7 +1307,7 @@ const PlayerController = {
             } else {
                 playerModel.position.x = targetX;
                 // Return to appropriate run animation when centered in lane (and not jumping, picking up, or throwing)
-                const isInTurnAnimation = currentPlayerAnimation === 'turnLeft' || currentPlayerAnimation === 'turnRight';
+                const isInTurnAnimation = currentPlayerAnimation === 'turnLeft';
                 if (isInTurnAnimation && !this.isJumping && !this.isPickingUp && !this.isThrowing) {
                     if (this.hasItem) {
                         this.switchToHoldingRunAnimation();
@@ -1436,23 +1436,26 @@ const PlayerController = {
     playTurnAnimation(direction) {
         if (!playerMixer) return;
 
-        const animKey = direction === 'left' ? 'turnLeft' : 'turnRight';
-        const turnAnim = playerAnimations[animKey];
+        // Only play turn animation for left turns
+        if (direction === 'left') {
+            const turnAnim = playerAnimations.turnLeft;
 
-        if (turnAnim) {
-            // Fade out current animation (could be run or runHolding)
-            const currentAnim = playerAnimations[currentPlayerAnimation];
-            if (currentAnim) {
-                currentAnim.fadeOut(0.2);
+            if (turnAnim) {
+                // Fade out current animation (could be run or runHolding)
+                const currentAnim = playerAnimations[currentPlayerAnimation];
+                if (currentAnim) {
+                    currentAnim.fadeOut(0.2);
+                }
+
+                // Fade in turn animation
+                turnAnim.reset();
+                turnAnim.fadeIn(0.2);
+                turnAnim.play();
+
+                currentPlayerAnimation = 'turnLeft';
             }
-
-            // Fade in turn animation
-            turnAnim.reset();
-            turnAnim.fadeIn(0.2);
-            turnAnim.play();
-
-            currentPlayerAnimation = animKey;
         }
+        // For right turns, no animation change - just continue current animation
     },
 
     switchToRunAnimation() {
@@ -3401,11 +3404,6 @@ function loadPlayerTurnAnimation() {
         if (fbx.animations && fbx.animations.length > 0) {
             const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER TURN');
 
-            // Store right turn
-            playerAnimations.turnRight = playerMixer.clipAction(clip);
-            playerAnimations.turnRight.setLoop(THREE.LoopOnce);
-            playerAnimations.turnRight.clampWhenFinished = true;
-
             // Create mirrored left turn by cloning and inverting Y rotations
             const leftClip = clip.clone();
             leftClip.name = 'turn_left';
@@ -3425,7 +3423,7 @@ function loadPlayerTurnAnimation() {
             playerAnimations.turnLeft.setLoop(THREE.LoopOnce);
             playerAnimations.turnLeft.clampWhenFinished = true;
 
-            console.log('Turn animations loaded and mirrored');
+            console.log('Turn left animation loaded');
         }
     }, undefined, (error) => {
         console.warn('Turn animation not loaded:', error);
