@@ -8135,10 +8135,18 @@ function animate() {
                 // Look slightly ahead of item to see enemy in frame
                 camera.lookAt(item.position.x, item.position.y, item.position.z - 8);
             } else if (playerModel) {
-                // Normal camera following player
-                camera.position.x = playerModel.position.x;
-                camera.position.z = playerModel.position.z + 5;  // Closer camera for better view of jammer
-                camera.lookAt(playerModel.position.x, playerModel.position.y + 1, playerModel.position.z - 5);
+                // CLOSE-UP camera following player (user requested this view as default)
+                // Matches the enemy reaction close-up camera style
+                const sideOffset = 3; // Slightly to the side for dynamic angle
+                const cameraHeight = 2; // At chest/face level
+                const behindDistance = 5; // 5 units behind player
+
+                camera.position.x = playerModel.position.x + sideOffset;
+                camera.position.y = playerModel.position.y + cameraHeight;
+                camera.position.z = playerModel.position.z + behindDistance;
+
+                // Look at player's upper body
+                camera.lookAt(playerModel.position.x, playerModel.position.y + 1.5, playerModel.position.z);
             }
 
             // Only update UI for chase mode (score display)
@@ -8313,8 +8321,9 @@ function init() {
         0.1,
         5000  // Increased far plane to see sky dome
     );
-    camera.position.set(0, 6, 8);
-    camera.lookAt(0, 0, 0);
+    // Initial close-up camera position (will update to follow player)
+    camera.position.set(3, 3, 5);
+    camera.lookAt(0, 1.5, 0);
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
