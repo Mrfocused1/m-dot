@@ -1206,6 +1206,7 @@ const PlayerController = {
     previousTargetLane: 1,
     isJumping: false,
     jumpStartY: 1.0,
+    isPickingUp: false,
 
     init() {
         this.currentLane = 1;
@@ -1215,6 +1216,7 @@ const PlayerController = {
         this.invincibilityTimer = 0;
         this.isJumping = false;
         this.jumpStartY = 1.0;
+        this.isPickingUp = false;
     },
 
     update(dt) {
@@ -1311,6 +1313,33 @@ const PlayerController = {
     finishJump() {
         console.log('🦘 Jump finished!');
         this.isJumping = false;
+
+        // Return to run animation
+        this.switchToRunAnimation();
+    },
+
+    startPickup() {
+        if (!playerMixer || !playerAnimations.pickup || this.isPickingUp) return;
+
+        console.log('✨ Pickup started!');
+        this.isPickingUp = true;
+
+        // Fade out current animation
+        const currentAnim = playerAnimations[currentPlayerAnimation];
+        if (currentAnim) {
+            currentAnim.fadeOut(0.1);
+        }
+
+        // Play pickup animation
+        playerAnimations.pickup.reset();
+        playerAnimations.pickup.fadeIn(0.1);
+        playerAnimations.pickup.play();
+        currentPlayerAnimation = 'pickup';
+    },
+
+    finishPickup() {
+        console.log('✨ Pickup finished!');
+        this.isPickingUp = false;
 
         // Return to run animation
         this.switchToRunAnimation();
@@ -2760,6 +2789,131 @@ class Obstacle {
     }
 }
 
+// ============================================================================
+// PICKUPS
+// ============================================================================
+
+const pickups = [];
+const pickupPool = [];
+let pickupModelTemplate = null; // 3D model template for pickup items
+let pickupsCollected = 0;
+
+class Pickup {
+    constructor() {
+        // Create placeholder golden sphere
+        const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xffd700,
+            emissive: 0xffd700,
+            emissiveIntensity: 0.3,
+            metalness: 0.8,
+            roughness: 0.2
+        });
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.castShadow = true;
+        this.mesh.receiveShadow = true;
+        this.active = false;
+        this.lane = 0;
+        this.rotationSpeed = 2; // Rotation speed for visual effect
+    }
+
+    replaceWithModel(modelTemplate) {
+        if (!modelTemplate) return;
+
+        const wasActive = this.active;
+        const currentLane = this.lane;
+        const currentZ = this.mesh.position.z;
+
+        if (this.active) {
+            scene.remove(this.mesh);
+        }
+
+        this.mesh = modelTemplate.clone();
+        this.type = 'pickup';
+
+        if (wasActive) {
+            this.lane = currentLane;
+            this.mesh.position.set(LANE_POSITIONS[this.lane], 1.0, currentZ);
+            scene.add(this.mesh);
+        }
+    }
+
+    activate(lane, zPosition) {
+        this.active = true;
+        this.lane = lane;
+        this.mesh.position.set(LANE_POSITIONS[lane], 1.0, zPosition);
+        scene.add(this.mesh);
+    }
+
+    deactivate() {
+        this.active = false;
+        scene.remove(this.mesh);
+
+        const index = pickups.indexOf(this);
+        if (index > -1) {
+            pickups.splice(index, 1);
+        }
+    }
+
+    update(dt) {
+        if (this.active) {
+            // Move with the road
+            this.mesh.position.z += GameState.gameSpeed * dt;
+
+            // Rotate for visual effect
+            this.mesh.rotation.y += this.rotationSpeed * dt;
+
+            // Remove pickups that passed the camera
+            if (this.mesh.position.z > 15) {
+                this.deactivate();
+            }
+        }
+    }
+}
+
+const PickupManager = {
+    spawnTimer: 0,
+    spawnInterval: 3.0, // Spawn pickups less frequently than obstacles
+
+    init() {
+        // Create pickup pool
+        for (let i = 0; i < 15; i++) {
+            pickupPool.push(new Pickup());
+        }
+        console.log('Pickup pool initialized:', pickupPool.length, 'pickups');
+    },
+
+    reset() {
+        pickups.forEach(pickup => {
+            scene.remove(pickup.mesh);
+        });
+        pickups.length = 0;
+        this.spawnTimer = 0;
+        pickupsCollected = 0;
+    },
+
+    spawn() {
+        const pickup = pickupPool.find(p => !p.active);
+        if (pickup) {
+            const lane = Math.floor(Math.random() * 3);
+            pickup.activate(lane, -50);
+            pickups.push(pickup);
+        }
+    },
+
+    update(dt) {
+        this.spawnTimer += dt;
+
+        if (this.spawnTimer >= this.spawnInterval) {
+            this.spawnTimer = 0;
+            this.spawn();
+        }
+
+        // Update all active pickups
+        pickups.forEach(pickup => pickup.update(dt));
+    }
+};
+
 const ObstacleManager = {
     spawnTimer: 0,
     spawnInterval: 1.5,
@@ -3122,9 +3276,10 @@ function loadPlayerCharacter() {
 
         console.log('Player character loaded');
 
-        // Load turn and jump animations
+        // Load turn, jump, and pickup animations
         loadPlayerTurnAnimation();
         loadPlayerJumpAnimation();
+        loadPlayerPickupAnimation();
     }, undefined, (error) => {
         console.error('Error loading player FBX:', error);
         createFallbackPlayer();
@@ -3191,6 +3346,31 @@ function loadPlayerJumpAnimation() {
         }
     }, undefined, (error) => {
         console.warn('Jump animation not loaded:', error);
+    });
+}
+
+function loadPlayerPickupAnimation() {
+    const loader = stage1FBXLoader;
+
+    loader.load('jammer_pickup.fbx', (fbx) => {
+        if (fbx.animations && fbx.animations.length > 0) {
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER PICKUP');
+
+            playerAnimations.pickup = playerMixer.clipAction(clip);
+            playerAnimations.pickup.setLoop(THREE.LoopOnce);
+            playerAnimations.pickup.clampWhenFinished = false;
+
+            // When pickup animation finishes, return to run
+            playerMixer.addEventListener('finished', (e) => {
+                if (e.action === playerAnimations.pickup) {
+                    PlayerController.finishPickup();
+                }
+            });
+
+            console.log('Pickup animation loaded');
+        }
+    }, undefined, (error) => {
+        console.warn('Pickup animation not loaded:', error);
     });
 }
 
@@ -5694,6 +5874,27 @@ function checkCollisions() {
             }
         }
     }
+
+    // Check pickup collisions
+    pickups.forEach(pickup => {
+        if (pickup.active) {
+            const distance = Math.abs(pickup.mesh.position.z - playerModel.position.z);
+            const sameColumn = pickup.lane === PlayerController.targetLane;
+
+            if (distance < 1.5 && sameColumn) {
+                // Collect pickup
+                GameState.score += 100;
+                pickupsCollected++;
+                console.log(`✨ Pickup collected! +100 (Total: ${pickupsCollected})`);
+
+                // Play pickup animation
+                PlayerController.startPickup();
+
+                // Remove pickup
+                pickup.deactivate();
+            }
+        }
+    });
 }
 
 function handlePlayerHit() {
@@ -5988,6 +6189,7 @@ function startGame() {
     PlayerController.init();
     EnemyController.init();
     ObstacleManager.reset();
+    PickupManager.reset();
 
     // Check if characters are already loaded
     const charactersAlreadyLoaded = playerModel && enemyModel;
@@ -6214,6 +6416,7 @@ function animate() {
             PlayerController.update(delta);
             EnemyController.update(delta);
             ObstacleManager.update(delta);
+            PickupManager.update(delta);
             EnvironmentManager.update(delta);
             checkCollisions();
 
@@ -6443,6 +6646,7 @@ function init() {
     // Always initialize environment and characters for level selection
     EnvironmentManager.init();
     ObstacleManager.init();
+    PickupManager.init();
     // loadPlayerCharacter(); // Disabled - only showing officer character
     // loadEnemyCharacter(); // Disabled - only showing officer character
 
