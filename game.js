@@ -7280,8 +7280,8 @@ function animate() {
             if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
                 // Cinematic camera following the thrown item
                 const item = PlayerController.activeThrownItem;
-                const cameraDistance = 18; // Distance behind item (zoomed way out to capture enemy and can)
-                const cameraHeight = 10; // Height above item (high angle to see both targets)
+                const cameraDistance = 12; // Distance behind item (far back to see more context)
+                const cameraHeight = 7; // Height above item (higher for wider view)
 
                 camera.position.x = item.position.x;
                 camera.position.y = item.position.y + cameraHeight;
