@@ -2160,23 +2160,26 @@ const EnemyController = {
             this.updateJump(dt);
         }
 
-        this.laneChangeTimer += dt;
+        // Lane change logic - ONLY when not jumping (prevents "flying" look)
+        if (!this.isJumping) {
+            this.laneChangeTimer += dt;
 
-        if (this.laneChangeTimer >= this.laneChangeInterval) {
-            this.laneChangeTimer = 0;
-            const rand = Math.random();
+            if (this.laneChangeTimer >= this.laneChangeInterval) {
+                this.laneChangeTimer = 0;
+                const rand = Math.random();
 
-            if (rand < 0.33 && this.targetLane > 0) {
-                this.targetLane--;
-            } else if (rand > 0.66 && this.targetLane < 2) {
-                this.targetLane++;
+                if (rand < 0.33 && this.targetLane > 0) {
+                    this.targetLane--;
+                } else if (rand > 0.66 && this.targetLane < 2) {
+                    this.targetLane++;
+                }
+
+                this.laneChangeInterval = 1.5 + Math.random() * 1.5;
             }
-
-            this.laneChangeInterval = 1.5 + Math.random() * 1.5;
         }
 
-        // Smooth lane movement
-        if (enemyModel) {
+        // Smooth lane movement - ONLY when not jumping
+        if (enemyModel && !this.isJumping) {
             const targetX = LANE_POSITIONS[this.targetLane];
             const diff = targetX - enemyModel.position.x;
 
