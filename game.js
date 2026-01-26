@@ -471,78 +471,7 @@ console.log('  testMixerUpdate() - Verify mixer.update() is called');
 console.log('  checkTrackBinding() - Verify animation tracks match skeleton');
 
 // LOADING SCREEN SYSTEM
-const LoadingScreen = {
-    overlay: null,
-    isComplete: false,
-    startTime: 0,
-    minDisplayTime: 1500, // Minimum 1.5 seconds display time
-
-    init() {
-        this.startTime = Date.now();
-
-        // Create loading screen overlay
-        this.overlay = document.createElement('div');
-        this.overlay.id = 'loading-screen';
-        this.overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            background: #000;
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-        `;
-        this.overlay.innerHTML = `
-            <div style="text-align: center;">
-                <div style="font-size: 48px; margin-bottom: 30px; color: #4fc3f7;">GAP TAG</div>
-                <div style="width: 300px; height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin-bottom: 20px;">
-                    <div id="loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #4fc3f7, #667eea); transition: width 0.3s;"></div>
-                </div>
-                <div id="loading-text" style="font-size: 18px; color: #888;">Loading... 0%</div>
-            </div>
-        `;
-        document.body.appendChild(this.overlay);
-        console.log('Loading screen initialized');
-    },
-
-    updateProgress(percentage) {
-        const bar = document.getElementById('loading-bar');
-        const text = document.getElementById('loading-text');
-        if (bar) bar.style.width = percentage + '%';
-        if (text) text.textContent = `Loading... ${percentage}%`;
-        console.log(`Loading progress: ${percentage}%`);
-    },
-
-    complete() {
-        if (this.isComplete) return;
-        this.isComplete = true;
-
-        // Calculate how long we've been displaying
-        const elapsed = Date.now() - this.startTime;
-        const remainingTime = Math.max(0, this.minDisplayTime - elapsed);
-
-        console.log(`Loading complete. Elapsed: ${elapsed}ms, Remaining: ${remainingTime}ms`);
-
-        // Wait for minimum display time before fading out
-        setTimeout(() => {
-            // Fade out loading screen
-            this.overlay.style.transition = 'opacity 0.5s';
-            this.overlay.style.opacity = '0';
-
-            setTimeout(() => {
-                if (this.overlay && this.overlay.parentNode) {
-                    this.overlay.parentNode.removeChild(this.overlay);
-                }
-            }, 500);
-        }, remainingTime);
-    }
-};
+// Old "GAP TAG" loading screen removed - now using Street Fighter-style loading screen in select-stage.html
 
 // STAGE 2 LOADING SCREEN (Level-specific)
 // Stage 1 loading screen removed - using select-stage.html loading screen instead
@@ -626,23 +555,20 @@ const Stage2LoadingScreen = {
 };
 
 // SHARED LOADER WITH PROGRESS TRACKING (Initial Load)
+// No loading screen on game.html - using select-stage.html loading screen instead
 const loadingManager = new THREE.LoadingManager();
 let assetsLoaded = false;
 
 loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
     const progress = Math.round((itemsLoaded / itemsTotal) * 100);
     console.log(`🔄 Loading: ${progress}% (${itemsLoaded}/${itemsTotal})`);
-    LoadingScreen.updateProgress(progress);
 };
 loadingManager.onLoad = () => {
     console.log('✅ All assets loaded!');
     assetsLoaded = true;
 
-    // Complete loading screen after short delay
+    // Show UI now that loading is complete
     setTimeout(() => {
-        LoadingScreen.complete();
-
-        // Show start menu now that loading is complete
         if (GameState.screen === 'START') {
             UI.updateUI();
         }
@@ -7482,10 +7408,9 @@ function init() {
     // loadPlayerCharacter(); // Disabled - only showing officer character
     // loadEnemyCharacter(); // Disabled - only showing officer character
 
-    // Complete initial loading screen immediately since we use stage-specific loaders
-    // The initial loadingManager has nothing to load anymore
+    // No loading screen on game.html - using select-stage.html loading screen instead
+    // Just update UI if on start screen
     setTimeout(() => {
-        LoadingScreen.complete();
         if (GameState.screen === 'START') {
             UI.updateUI();
         }
@@ -7550,8 +7475,7 @@ window.getCarObjects = () => ({
     fordFiesta
 });
 
-// Initialize loading screen IMMEDIATELY (before anything else loads)
-LoadingScreen.init();
+// No initial loading screen - using select-stage.html loading screen instead
 
 // Start when ready
 if (document.readyState === 'complete') {
