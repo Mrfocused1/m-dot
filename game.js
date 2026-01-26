@@ -781,6 +781,7 @@ let enemyAnimations = {}; // Store run, lookBehind animations
 let currentPlayerAnimation = null;
 let enemyLookBehindTriggered = false; // Track if look-behind animation has been triggered
 let colaCanTemplate = null; // Template for thrown cola can
+let heldCanModel = null; // Can model attached to player's hand when holding
 let clock;
 
 // Game world
@@ -1093,6 +1094,16 @@ const Input = {
         this.touchStartTime = Date.now();
         this.wasSwipe = false; // Reset swipe flag on new touch
 
+        // CRITICAL FIX FOR MOBILE MUSIC: Try to play pending music on first touch
+        // This is needed because stopPropagation() prevents document-level listeners from firing
+        if (MusicController.pendingPlay) {
+            MusicController.pendingPlay.play().then(() => {
+                console.log('🎵 Music started on mobile touch!');
+                MusicController.currentlyPlaying = MusicController.pendingPlay;
+                MusicController.pendingPlay = null;
+            }).catch(e => console.log('🎵 Music play attempt failed:', e));
+        }
+
         // CRITICAL FIX: Auto-recovery if touchend doesn't fire (mobile browser bug)
         // Clear any existing timeout first
         if (this.touchResetTimeout) {
@@ -1357,6 +1368,7 @@ const PlayerController = {
     jumpStartY: 1.0,
     isPickingUp: false,
     hasItem: false,
+    hasThrown: false, // Track if player has thrown at least once (enables obstacle collision)
     isThrowing: false,
     savedGameSpeed: 0,
     throwTimeout: null,
@@ -1377,6 +1389,7 @@ const PlayerController = {
         this.jumpStartY = 1.0;
         this.isPickingUp = false;
         this.hasItem = false;
+        this.hasThrown = false; // Reset throw state for new game
         this.isThrowing = false;
         this.savedGameSpeed = 0;
         this.activeThrownItem = null;
@@ -1597,6 +1610,30 @@ const PlayerController = {
             playerAnimations.pickup.stop();
         }
 
+        // CRITICAL FIX: Attach visible can to player's hand
+        if (colaCanTemplate && playerModel && !heldCanModel) {
+            heldCanModel = colaCanTemplate.clone();
+            heldCanModel.scale.set(1.0, 1.0, 1.0);
+
+            // Position can relative to player (in their hand area)
+            heldCanModel.position.set(0.5, 1.2, -0.3); // Right side, chest height, slightly forward
+            heldCanModel.rotation.set(0, 0, 0);
+
+            // Make sure it's visible
+            heldCanModel.visible = true;
+            heldCanModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.visible = true;
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            // Add to player model so it moves with the player
+            playerModel.add(heldCanModel);
+            console.log('🥤 Can attached to player hand - now visible!');
+        }
+
         // Switch to holding run animation
         this.switchToHoldingRunAnimation();
         console.log('✨ Pickup cleanup complete. States: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp);
@@ -1618,6 +1655,7 @@ const PlayerController = {
         console.log('🎯 Throw started!');
         this.isThrowing = true;
         this.hasItem = false; // CRITICAL: Clear immediately, don't wait for finishThrow
+        this.hasThrown = true; // Enable obstacle collision after first throw
 
         // Clear any existing throw timeout
         if (this.throwTimeout) {
@@ -1724,6 +1762,13 @@ const PlayerController = {
 
     createThrownItem() {
         if (!playerModel) return;
+
+        // CRITICAL FIX: Remove held can from player's hand now that projectile is being created
+        if (heldCanModel && playerModel) {
+            playerModel.remove(heldCanModel);
+            heldCanModel = null;
+            console.log('🥤 Held can removed from player hand (projectile created)');
+        }
 
         // Reset look-behind trigger for this new throw
         enemyLookBehindTriggered = false;
@@ -7417,15 +7462,20 @@ function checkCollisions() {
     // Skip damage collisions if invincible
     if (PlayerController.isInvincible) return;
 
-    // Check obstacle collisions - DISABLED for Level 1 (chase mode)
-    // In chase mode, obstacles are visual only and don't affect the player
-    if (GameState.selectedLevel !== 'chase' && !PlayerController.isJumping) {
+    // Check obstacle collisions
+    // In chase mode: obstacles are safe UNTIL player throws for the first time
+    // After first throw in chase mode, obstacles become dangerous
+    const shouldCheckObstacleCollision = (GameState.selectedLevel !== 'chase') ||
+                                         (GameState.selectedLevel === 'chase' && PlayerController.hasThrown);
+
+    if (shouldCheckObstacleCollision && !PlayerController.isJumping) {
         obstacles.forEach(obstacle => {
             if (obstacle.active) {
                 const distance = Math.abs(obstacle.mesh.position.z - playerModel.position.z);
                 const sameColumn = obstacle.lane === PlayerController.targetLane;
 
                 if (distance < 1.5 && sameColumn) {
+                    console.log('💥 Player hit obstacle!');
                     handlePlayerHit();
                     obstacle.deactivate();
                 }
@@ -7841,6 +7891,13 @@ function resetGame() {
         HorizontalControls.destroy();
     }
     GameState.isHorizontalMode = false;
+
+    // Clean up held can if it exists
+    if (heldCanModel && playerModel) {
+        playerModel.remove(heldCanModel);
+        heldCanModel = null;
+        console.log('🥤 Held can cleaned up on game reset');
+    }
 
     startGame();
 }
