@@ -2533,13 +2533,18 @@ class Obstacle {
     deactivate() {
         this.active = false;
         scene.remove(this.mesh);
+
+        // Remove from obstacles array
+        const index = obstacles.indexOf(this);
+        if (index > -1) {
+            obstacles.splice(index, 1);
+        }
     }
 
     update(dt) {
         if (this.active) {
             // Barriers move with the road (same speed) - attached to road surface
-            const roadSpeed = GameState.gameSpeed * 2.5;
-            this.mesh.position.z += roadSpeed * dt;
+            this.mesh.position.z += GameState.gameSpeed * dt;
 
             // Remove barriers that passed the camera
             if (this.mesh.position.z > 15) {
@@ -2858,7 +2863,7 @@ const EnvironmentManager = {
     update(dt) {
         // Update 3D road models with seamless looping
         const loopDistance = roadSegmentLength * roadModels.length;
-        const roadSpeed = GameState.gameSpeed * 2.5; // Road moves 2.5x faster for realistic effect
+        const roadSpeed = GameState.gameSpeed; // Road moves at constant speed synchronized with barriers
 
         roadModels.forEach(roadModel => {
             // Move road toward camera (player running forward)
