@@ -1257,6 +1257,7 @@ const PlayerController = {
     isThrowing: false,
     savedGameSpeed: 0,
     throwTimeout: null,
+    pickupTimeout: null,
     activeThrownItem: null, // Reference to the currently thrown item
     isFollowingThrowItem: false, // Camera follow state
     throwCameraTimer: 0, // Timer for camera follow duration
@@ -1402,6 +1403,12 @@ const PlayerController = {
         console.log('✨ Pickup started!');
         this.isPickingUp = true;
 
+        // Clear any existing pickup timeout
+        if (this.pickupTimeout) {
+            clearTimeout(this.pickupTimeout);
+            this.pickupTimeout = null;
+        }
+
         // If pickup interrupts a jump, clear jumping state so movement isn't blocked
         if (this.isJumping) {
             console.log('✨ Pickup interrupted jump - clearing jump state');
@@ -1423,10 +1430,37 @@ const PlayerController = {
         playerAnimations.pickup.fadeIn(0.1);
         playerAnimations.pickup.play();
         currentPlayerAnimation = 'pickup';
+
+        // Get animation duration
+        const clipDuration = playerAnimations.pickup.getClip().duration || 1.0;
+
+        // Fallback timeout: ensure finishPickup is called even if animation event doesn't fire
+        const timeoutMs = (clipDuration + 0.5) * 1000; // Add 500ms buffer
+        console.log(`✨ Setting pickup timeout fallback: ${timeoutMs}ms (clip duration: ${clipDuration}s)`);
+
+        this.pickupTimeout = setTimeout(() => {
+            if (this.isPickingUp) {
+                console.log('✨ Pickup timeout fallback triggered - forcing finishPickup()');
+                this.finishPickup();
+            }
+        }, timeoutMs);
     },
 
     finishPickup() {
+        // Prevent multiple calls (from both animation event and timeout)
+        if (!this.isPickingUp) {
+            console.log('✨ finishPickup called but not picking up - ignoring');
+            return;
+        }
+
         console.log('✨ Pickup finished!');
+
+        // Clear the timeout if it exists
+        if (this.pickupTimeout) {
+            clearTimeout(this.pickupTimeout);
+            this.pickupTimeout = null;
+        }
+
         this.isPickingUp = false;
         this.hasItem = true;
 
