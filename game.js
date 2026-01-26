@@ -875,6 +875,7 @@ const Input = {
     touchX: 0,
     touchY: 0,
     inputProcessed: false,
+    jumpRequested: false,
     canvas: null,
 
     init() {
@@ -1019,11 +1020,14 @@ const Input = {
         const deltaY = Math.abs(touch.clientY - this.touchStartY);
         const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        // TAP detection: short duration + minimal movement = tap to shoot
+        // TAP detection: short duration + minimal movement = tap to shoot/jump
         if (touchDuration < 200 && totalDistance < 20) {
-            console.log('📱 TAP detected - SHOOT!');
             if (GameState.selectedLevel === 'shoot' && GameState.screen === 'PLAYING') {
+                console.log('📱 TAP detected - SHOOT!');
                 MazeController.shoot();
+            } else if (GameState.selectedLevel === 'chase' && GameState.screen === 'PLAYING') {
+                console.log('📱 TAP detected - JUMP!');
+                this.jumpRequested = true;
             }
         }
 
@@ -1077,6 +1081,16 @@ const Input = {
             return;
         }
 
+        // Jump with spacebar in Level 1
+        if (e.key === ' ' || e.key === 'Spacebar') {
+            if (GameState.selectedLevel === 'chase' && GameState.screen === 'PLAYING') {
+                e.preventDefault();
+                console.log('⌨️ SPACEBAR - JUMP!');
+                this.jumpRequested = true;
+            }
+            return;
+        }
+
         if (e.key === 'ArrowLeft') {
             this.touchSide = 'LEFT';
             this.touchActive = true;
@@ -1100,6 +1114,8 @@ const PlayerController = {
     isInvincible: false,
     invincibilityTimer: 0,
     previousTargetLane: 1,
+    isJumping: false,
+    jumpStartY: 1.0,
 
     init() {
         this.currentLane = 1;
@@ -1107,11 +1123,19 @@ const PlayerController = {
         this.previousTargetLane = 1;
         this.isInvincible = false;
         this.invincibilityTimer = 0;
+        this.isJumping = false;
+        this.jumpStartY = 1.0;
     },
 
     update(dt) {
-        // Handle input
-        if (Input.touchActive && !Input.inputProcessed) {
+        // Handle jump input
+        if (Input.jumpRequested && !this.isJumping) {
+            this.startJump();
+            Input.jumpRequested = false;
+        }
+
+        // Handle lane change input
+        if (Input.touchActive && !Input.inputProcessed && !this.isJumping) {
             if (Input.touchSide === 'LEFT' && this.targetLane > 0) {
                 this.targetLane--;
                 Input.inputProcessed = true;
@@ -1125,8 +1149,8 @@ const PlayerController = {
             Input.inputProcessed = false;
         }
 
-        // Detect lane change and play turn animation
-        if (this.targetLane !== this.previousTargetLane) {
+        // Detect lane change and play turn animation (only if not jumping)
+        if (this.targetLane !== this.previousTargetLane && !this.isJumping) {
             const direction = this.targetLane > this.previousTargetLane ? 'right' : 'left';
             this.playTurnAnimation(direction);
             this.previousTargetLane = this.targetLane;
@@ -1141,8 +1165,8 @@ const PlayerController = {
                 playerModel.position.x += diff * this.laneChangeSpeed * dt;
             } else {
                 playerModel.position.x = targetX;
-                // Return to run animation when centered in lane
-                if (currentPlayerAnimation !== 'run' && playerAnimations.run) {
+                // Return to run animation when centered in lane (and not jumping)
+                if (currentPlayerAnimation !== 'run' && !this.isJumping && playerAnimations.run) {
                     this.switchToRunAnimation();
                 }
             }
@@ -1156,6 +1180,34 @@ const PlayerController = {
                 this.invincibilityTimer = 0;
             }
         }
+    },
+
+    startJump() {
+        if (!playerMixer || !playerAnimations.flip) return;
+
+        console.log('🦘 Jump started!');
+        this.isJumping = true;
+        this.jumpStartY = playerModel ? playerModel.position.y : 1.0;
+
+        // Fade out current animation
+        const currentAnim = playerAnimations[currentPlayerAnimation];
+        if (currentAnim) {
+            currentAnim.fadeOut(0.1);
+        }
+
+        // Play flip animation
+        playerAnimations.flip.reset();
+        playerAnimations.flip.fadeIn(0.1);
+        playerAnimations.flip.play();
+        currentPlayerAnimation = 'flip';
+    },
+
+    finishJump() {
+        console.log('🦘 Jump finished!');
+        this.isJumping = false;
+
+        // Return to run animation
+        this.switchToRunAnimation();
     },
 
     playTurnAnimation(direction) {
@@ -2964,8 +3016,9 @@ function loadPlayerCharacter() {
 
         console.log('Player character loaded');
 
-        // Load turn animation
+        // Load turn and flip animations
         loadPlayerTurnAnimation();
+        loadPlayerFlipAnimation();
     }, undefined, (error) => {
         console.error('Error loading player FBX:', error);
         createFallbackPlayer();
@@ -3007,6 +3060,31 @@ function loadPlayerTurnAnimation() {
         }
     }, undefined, (error) => {
         console.warn('Turn animation not loaded:', error);
+    });
+}
+
+function loadPlayerFlipAnimation() {
+    const loader = sharedFBXLoader;
+
+    loader.load('jammer_flip.fbx', (fbx) => {
+        if (fbx.animations && fbx.animations.length > 0) {
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER FLIP');
+
+            playerAnimations.flip = playerMixer.clipAction(clip);
+            playerAnimations.flip.setLoop(THREE.LoopOnce);
+            playerAnimations.flip.clampWhenFinished = false;
+
+            // When flip animation finishes, return to run
+            playerMixer.addEventListener('finished', (e) => {
+                if (e.action === playerAnimations.flip) {
+                    PlayerController.finishJump();
+                }
+            });
+
+            console.log('Flip animation loaded');
+        }
+    }, undefined, (error) => {
+        console.warn('Flip animation not loaded:', error);
     });
 }
 
@@ -3082,59 +3160,15 @@ function loadEnemyCharacter() {
         // Setup animation with proper looping
         enemyMixer = new THREE.AnimationMixer(enemyModel);
         if (fbx.animations && fbx.animations.length > 0) {
-            const clip = fbx.animations[0];
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'ENEMY RUN');
 
-            // === DEBUG: Log animation data ===
-            console.log('=== ENEMY Animation Debug Info ===');
-            console.log('Clip name:', clip.name);
-            console.log('Clip duration:', clip.duration);
-            console.log('Number of tracks:', clip.tracks.length);
-
-            if (clip.tracks.length > 0) {
-                const firstTrack = clip.tracks[0];
-                console.log('First track name:', firstTrack.name);
-                console.log('First track times (first 5):', firstTrack.times.slice(0, 5));
-                console.log('First track times (last 5):', firstTrack.times.slice(-5));
-                console.log('Min time:', Math.min(...firstTrack.times));
-                console.log('Max time:', Math.max(...firstTrack.times));
-            }
-
-            // Normalize all track times to start at 0
-            if (minTime > 0.001) { // Only normalize if there's a significant offset
-                console.log('ENEMY: Normalizing animation - removing offset of:', minTime);
-                clip.tracks.forEach(track => {
-                    for (let i = 0; i < track.times.length; i++) {
-                        track.times[i] -= minTime;
-                    }
-                });
-                // Recalculate duration
-                clip.duration = clip.tracks.reduce((max, track) => {
-                    return Math.max(max, track.times[track.times.length - 1]);
-                }, 0);
-                console.log('ENEMY: New duration after normalization:', clip.duration);
-            }
-
-            // === RALPH'S FIX: Remove the Hips position track that causes flashing ===
-            console.log('ENEMY: Filtering animation tracks...');
-            const originalTrackCount = clip.tracks.length;
-            clip.tracks = clip.tracks.filter(track => {
-                // Remove ONLY the root Hips position track
-                if (track.name === 'mixamorigHips.position') {
-                    console.log('ENEMY: ❌ Removing:', track.name);
-                    return false;
-                }
-                return true; // Keep all rotation tracks
-            });
-            console.log(`ENEMY: Removed ${originalTrackCount - clip.tracks.length} track(s), kept ${clip.tracks.length}`);
-
-            // === SOLUTION: Try using original clip without subclip first ===
             const action = enemyMixer.clipAction(clip);
             action.setLoop(THREE.LoopRepeat, Infinity);
             action.clampWhenFinished = false;
-            action.timeScale = 1.0; // Normal speed
+            action.timeScale = 1.0;
             action.reset();
             action.play();
-            console.log('ENEMY: Animation playing with normalized clip, duration:', clip.duration);
+            console.log('ENEMY: Animation playing, duration:', clip.duration);
         }
 
         console.log('Enemy character loaded');
@@ -5526,18 +5560,20 @@ function removeStepTrackerDashboard() {
 function checkCollisions() {
     if (PlayerController.isInvincible || !playerModel) return;
 
-    // Check obstacle collisions
-    obstacles.forEach(obstacle => {
-        if (obstacle.active) {
-            const distance = Math.abs(obstacle.mesh.position.z - playerModel.position.z);
-            const sameColumn = obstacle.lane === PlayerController.targetLane;
+    // Check obstacle collisions (player can jump over obstacles)
+    if (!PlayerController.isJumping) {
+        obstacles.forEach(obstacle => {
+            if (obstacle.active) {
+                const distance = Math.abs(obstacle.mesh.position.z - playerModel.position.z);
+                const sameColumn = obstacle.lane === PlayerController.targetLane;
 
-            if (distance < 1.5 && sameColumn) {
-                handlePlayerHit();
-                obstacle.deactivate();
+                if (distance < 1.5 && sameColumn) {
+                    handlePlayerHit();
+                    obstacle.deactivate();
+                }
             }
-        }
-    });
+        });
+    }
 
     // Check enemy collision
     if (enemyModel) {
@@ -5632,6 +5668,7 @@ function toggleHelpOverlay() {
                     <div style="margin-left: 20px; line-height: 1.8;">
                         <div><span style="color: #4fc3f7;">←</span> Arrow Left - Move to left lane</div>
                         <div><span style="color: #4fc3f7;">→</span> Arrow Right - Move to right lane</div>
+                        <div><span style="color: #4fc3f7;">Space</span> - Jump over barriers</div>
                     </div>
                 </div>
 
@@ -5648,6 +5685,7 @@ function toggleHelpOverlay() {
                     <div style="margin-left: 20px; line-height: 1.8;">
                         <div>Tap left side - Move left</div>
                         <div>Tap right side - Move right</div>
+                        <div>Tap center - Jump over barriers</div>
                     </div>
                 </div>
             ` : `
