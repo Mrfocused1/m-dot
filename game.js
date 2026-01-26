@@ -7294,16 +7294,17 @@ function animate() {
 
             // Update camera to follow player or thrown item
             if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
-                // Cinematic camera following the thrown item - side view at enemy level
+                // Cinematic camera - TRUE SIDE VIEW to see can hit enemy
                 const item = PlayerController.activeThrownItem;
-                const cameraDistance = 10; // Distance to side for wide side perspective
-                const cameraHeight = 0.5; // At enemy eye level for side view
+                const sideOffset = 8; // Distance to the side (left/right)
+                const cameraHeight = 1.0; // At enemy eye level for side view
+                const depthOffset = 3; // Slightly behind item to see both can and enemy
 
-                camera.position.x = item.position.x;
+                camera.position.x = item.position.x + sideOffset; // Move camera to the SIDE
                 camera.position.y = item.position.y + cameraHeight;
-                camera.position.z = item.position.z + cameraDistance;
+                camera.position.z = item.position.z + depthOffset; // Slightly behind to capture both
 
-                // Look at the item and ahead toward enemy
+                // Look at the item (can see it travel to enemy from side)
                 camera.lookAt(item.position.x, item.position.y, item.position.z - 5);
             } else if (playerModel) {
                 // Normal camera following player
