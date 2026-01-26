@@ -793,17 +793,37 @@ let pickupsEnabled = false; // Will be enabled 2 seconds after game starts
 
 // Loading progress tracking (for preload mode)
 const loadingProgress = {
+    // Core models
     playerModel: false,
     enemyModel: false,
     colaCanModel: false,
     skyDome: false,
 
+    // Player animations (critical for gameplay)
+    playerJumpAnim: false,
+    playerPickupAnim: false,
+    playerThrowAnim: false,
+    playerHoldingAnim: false,
+
+    // Enemy animations (critical for cinematic)
+    enemyLookBehindAnim: false,
+    enemyDeathAnim: false,
+    enemyJumpAnim: false,
+
     update() {
-        const total = 4;
+        // Count all critical assets (11 total)
+        const total = 11;
         const loaded = (this.playerModel ? 1 : 0) +
                       (this.enemyModel ? 1 : 0) +
                       (this.colaCanModel ? 1 : 0) +
-                      (this.skyDome ? 1 : 0);
+                      (this.skyDome ? 1 : 0) +
+                      (this.playerJumpAnim ? 1 : 0) +
+                      (this.playerPickupAnim ? 1 : 0) +
+                      (this.playerThrowAnim ? 1 : 0) +
+                      (this.playerHoldingAnim ? 1 : 0) +
+                      (this.enemyLookBehindAnim ? 1 : 0) +
+                      (this.enemyDeathAnim ? 1 : 0) +
+                      (this.enemyJumpAnim ? 1 : 0);
         const progress = Math.round((loaded / total) * 100);
 
         // Send progress to parent window if in preload mode
@@ -814,7 +834,7 @@ const loadingProgress = {
                 type: 'GAME_LOAD_PROGRESS',
                 progress: progress
             }, '*');
-            console.log(`📦 Loading progress: ${progress}% (${loaded}/${total} assets)`);
+            console.log(`📦 Loading progress: ${progress}% (${loaded}/${total} assets loaded)`);
         }
     }
 };
@@ -4564,8 +4584,21 @@ const EnvironmentManager = {
 
 // Check if Stage 1 assets are loaded and start game if ready
 function checkStage1AssetsLoaded() {
-    if (playerModel && enemyModel && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
-        console.log('✅ Stage 1 characters loaded, starting game');
+    // CRITICAL FIX: Check ALL assets are loaded, not just models
+    const allAssetsLoaded = loadingProgress.playerModel &&
+                           loadingProgress.enemyModel &&
+                           loadingProgress.colaCanModel &&
+                           loadingProgress.skyDome &&
+                           loadingProgress.playerJumpAnim &&
+                           loadingProgress.playerPickupAnim &&
+                           loadingProgress.playerThrowAnim &&
+                           loadingProgress.playerHoldingAnim &&
+                           loadingProgress.enemyLookBehindAnim &&
+                           loadingProgress.enemyDeathAnim &&
+                           loadingProgress.enemyJumpAnim;
+
+    if (allAssetsLoaded && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
+        console.log('✅ ALL Stage 1 assets loaded (11/11), starting game');
         GameState.isRunning = true;
         UI.updateUI();
 
@@ -4573,7 +4606,7 @@ function checkStage1AssetsLoaded() {
         const urlParams = new URLSearchParams(window.location.search);
         const isPreloading = urlParams.get('preload') === 'true';
         if (isPreloading && window.parent) {
-            console.log('📡 Sending GAME_FULLY_LOADED message to parent');
+            console.log('📡 Sending GAME_FULLY_LOADED message to parent (all 11 assets verified)');
             window.parent.postMessage({ type: 'GAME_FULLY_LOADED' }, '*');
         } else {
             // Normal game start - enable pickups after 2 seconds
@@ -4681,6 +4714,11 @@ function loadPlayerJumpAnimation() {
             setupPlayerAnimationFinishedHandler();
 
             console.log('Jump animation loaded');
+
+            // Track loading progress
+            loadingProgress.playerJumpAnim = true;
+            loadingProgress.update();
+            checkStage1AssetsLoaded();
         }
     }, undefined, (error) => {
         console.warn('Jump animation not loaded:', error);
@@ -4702,6 +4740,11 @@ function loadPlayerPickupAnimation() {
             setupPlayerAnimationFinishedHandler();
 
             console.log('Pickup animation loaded');
+
+            // Track loading progress
+            loadingProgress.playerPickupAnim = true;
+            loadingProgress.update();
+            checkStage1AssetsLoaded();
         }
     }, undefined, (error) => {
         console.warn('Pickup animation not loaded:', error);
@@ -4720,6 +4763,11 @@ function loadPlayerHoldingRunAnimation() {
             playerAnimations.runHolding.timeScale = 1.0;
 
             console.log('Run holding animation loaded');
+
+            // Track loading progress
+            loadingProgress.playerHoldingAnim = true;
+            loadingProgress.update();
+            checkStage1AssetsLoaded();
         }
     }, undefined, (error) => {
         console.warn('Run holding animation not loaded:', error);
@@ -4741,6 +4789,11 @@ function loadPlayerThrowAnimation() {
             setupPlayerAnimationFinishedHandler();
 
             console.log('Throw animation loaded');
+
+            // Track loading progress
+            loadingProgress.playerThrowAnim = true;
+            loadingProgress.update();
+            checkStage1AssetsLoaded();
         }
     }, undefined, (error) => {
         console.warn('Throw animation not loaded:', error);
@@ -4842,6 +4895,11 @@ function loadEnemyCharacter() {
                 enemyAnimations.lookBehind.clampWhenFinished = false;
                 enemyAnimations.lookBehind.timeScale = 1.0;
                 console.log('ENEMY: Look-behind animation loaded, duration:', lookBehindClip.duration);
+
+                // Track loading progress
+                loadingProgress.enemyLookBehindAnim = true;
+                loadingProgress.update();
+                checkStage1AssetsLoaded();
             }
         }, undefined, (error) => {
             console.warn('⚠️ Error loading look-behind animation:', error);
@@ -4856,6 +4914,11 @@ function loadEnemyCharacter() {
                 enemyAnimations.death.clampWhenFinished = true; // Hold on last frame
                 enemyAnimations.death.timeScale = 1.0;
                 console.log('ENEMY: Death/Hit animation loaded, duration:', deathClip.duration);
+
+                // Track loading progress
+                loadingProgress.enemyDeathAnim = true;
+                loadingProgress.update();
+                checkStage1AssetsLoaded();
             }
         }, undefined, (error) => {
             console.warn('⚠️ Error loading death animation:', error);
@@ -4870,6 +4933,11 @@ function loadEnemyCharacter() {
                 enemyAnimations.jump.clampWhenFinished = false; // Don't hold on last frame
                 enemyAnimations.jump.timeScale = 1.0;
                 console.log('ENEMY: Jump animation loaded, duration:', jumpClip.duration);
+
+                // Track loading progress
+                loadingProgress.enemyJumpAnim = true;
+                loadingProgress.update();
+                checkStage1AssetsLoaded();
             }
         }, undefined, (error) => {
             console.warn('⚠️ Error loading jump animation:', error);
