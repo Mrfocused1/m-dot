@@ -7280,14 +7280,14 @@ function animate() {
             if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
                 // Cinematic camera following the thrown item
                 const item = PlayerController.activeThrownItem;
-                const cameraDistance = 12; // Distance behind item (far back to see more context)
-                const cameraHeight = 7; // Height above item (higher for wider view)
+                const cameraDistance = 8; // Distance behind item for side perspective
+                const cameraHeight = 2; // Low height for side-view angle
 
                 camera.position.x = item.position.x;
                 camera.position.y = item.position.y + cameraHeight;
                 camera.position.z = item.position.z + cameraDistance;
 
-                // Look at the item and slightly ahead
+                // Look at the item and ahead toward enemy
                 camera.lookAt(item.position.x, item.position.y, item.position.z - 5);
             } else if (playerModel) {
                 // Normal camera following player
