@@ -6693,11 +6693,18 @@ function checkCollisions() {
     if (!PlayerController.isPickingUp && !PlayerController.isThrowing && !PlayerController.hasItem) {
         pickups.forEach(pickup => {
             if (pickup.active) {
-                const distance = Math.abs(pickup.mesh.position.z - playerModel.position.z);
-                const sameColumn = pickup.lane === PlayerController.targetLane;
+                // Use actual position-based collision for reliable pickup detection
+                const pickupPos = pickup.mesh.position;
+                const playerPos = playerModel.position;
 
-                if (distance < 1.5 && sameColumn) {
-                    console.log('✨ Pickup collision detected! Starting pickup animation');
+                // Check X distance (must be in same lane - within 1.5 units)
+                const xDistance = Math.abs(pickupPos.x - playerPos.x);
+                // Check Z distance (increased threshold for game speed reliability)
+                const zDistance = Math.abs(pickupPos.z - playerPos.z);
+
+                // Collision: within same lane (X < 1.5) and close enough on Z axis (< 2.5)
+                if (xDistance < 1.5 && zDistance < 2.5) {
+                    console.log(`✨ Pickup collision detected! xDist=${xDistance.toFixed(2)}, zDist=${zDistance.toFixed(2)}, pickupZ=${pickupPos.z.toFixed(2)}, playerZ=${playerPos.z.toFixed(2)}`);
                     // Collect pickup
                     GameState.score += 100;
                     pickupsCollected++;
