@@ -750,6 +750,9 @@ stage1LoadingManager.onLoad = () => {
         }
     }, 300);
 };
+stage1LoadingManager.onError = (url) => {
+    console.error('❌ Stage 1 loading error:', url);
+};
 const stage1GLTFLoader = new GLTFLoader(stage1LoadingManager);
 const stage1FBXLoader = new FBXLoader(stage1LoadingManager);
 
@@ -6316,6 +6319,15 @@ function startGame() {
         if (!enemyModel) {
             loadEnemyCharacter();
         }
+
+        // Safety timeout: if loading takes more than 10 seconds, force complete
+        setTimeout(() => {
+            if (!stage1AssetsLoaded) {
+                console.warn('⚠️ Stage 1 loading timeout - forcing complete');
+                Stage1LoadingScreen.complete();
+                UI.updateUI();
+            }
+        }, 10000);
 
         // UI will be updated when stage1LoadingManager.onLoad triggers
     }
