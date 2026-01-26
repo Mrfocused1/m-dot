@@ -1771,13 +1771,10 @@ const PlayerController = {
 
                         // Hold slow motion for 3 seconds to see full death animation
                         setTimeout(() => {
-                            GameState.timeScale = 1.0; // Restore normal speed
-                            GameState.stageFrozen = false; // Unfreeze stage
-                            // CRITICAL FIX: Restore game speed here to prevent savedGameSpeed being 0 on next throw
-                            GameState.gameSpeed = this.savedGameSpeed || GAME_SPEED;
-                            console.log('🎬 Normal speed restored');
-                            console.log('▶️ Stage movement resumed');
-                            console.log('⚡ Game speed restored:', GameState.gameSpeed);
+                            GameState.timeScale = 1.0; // Restore normal animation speed
+                            // NOTE: Keep stage frozen and gameSpeed at 0 until "Got em!" text finishes
+                            // This will be restored in fadeAndReturnToGameplay()
+                            console.log('🎬 Normal animation speed restored (stage still frozen for "Got em!" text)');
 
                             this.isFollowingEnemyReaction = false; // End enemy close-up
 
@@ -1789,7 +1786,7 @@ const PlayerController = {
                             });
                             console.log('👁️ Pickups visible again');
 
-                            // Show "Got em!" text and fade
+                            // Show "Got em!" text and fade (stage stays frozen during this)
                             this.showThrowResult(true);
                         }, 3000);
 
@@ -1923,12 +1920,11 @@ const PlayerController = {
             this.hasItem = false;
             this.isPickingUp = false;
             GameState.timeScale = 1.0;
-            GameState.stageFrozen = false;
-            // CRITICAL FIX: Force game speed to default if it's stuck at 0
-            if (GameState.gameSpeed === 0) {
-                GameState.gameSpeed = GAME_SPEED;
-                console.log('⚡ EMERGENCY: Game speed was 0, forced to', GAME_SPEED);
-            }
+            GameState.stageFrozen = false; // Unfreeze stage NOW (after "Got em!" text)
+            // CRITICAL FIX: Restore game speed from saved value or default
+            GameState.gameSpeed = this.savedGameSpeed || GAME_SPEED;
+            console.log('⚡ Game speed restored:', GameState.gameSpeed);
+            console.log('▶️ Stage movement resumed (after "Got em!" text)');
             console.log('🎬 FORCED state reset: isThrowing=false, hasItem=false, isPickingUp=false, gameSpeed=', GameState.gameSpeed);
 
             // Force player back to run animation
