@@ -148,15 +148,6 @@
                 width: 90%;
                 text-align: center;
             }
-
-            .mobile-hero-bg {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100vh;
-                z-index: 10;
-            }
         }
     </style>
 </head>
@@ -223,11 +214,11 @@
             <img id="logo-image-mobile" src="merkleman-logo.png" alt="Merkle Man Logo" class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(0,255,65,0.5)] opacity-0" />
         </div>
 
-        <!-- Hero Background Image -->
-        <div class="absolute inset-0 md:relative md:h-[500px] flex items-center justify-center perspective-1000 mobile-hero-bg">
-            <div id="hero-image" class="w-full h-full bg-contain bg-center bg-no-repeat relative z-10 opacity-0 transform translate-y-20 scale-90"
+        <!-- Mobile Hero Background Image (only on mobile - absolute positioned) -->
+        <div class="md:hidden absolute inset-0 flex items-center justify-center perspective-1000">
+            <div id="hero-image-mobile" class="w-full h-full bg-contain bg-center bg-no-repeat relative z-10 opacity-0 transform translate-y-20 scale-90"
                  style="background-image: url('merkleman-hero.png');">
-                 <div class="absolute inset-0 bg-gradient-to-t from-merkle-black/80 md:from-merkle-black to-transparent"></div>
+                 <div class="absolute inset-0 bg-gradient-to-t from-merkle-black/80 to-transparent"></div>
             </div>
             <!-- Particle effects simulated via CSS/Divs -->
             <div class="absolute w-64 h-64 bg-merkle-purple blur-[100px] opacity-20 animate-pulse"></div>
@@ -257,8 +248,15 @@
                 </div>
             </div>
 
-            <!-- Spacer for desktop grid -->
-            <div class="hidden md:block"></div>
+            <!-- Desktop Hero Image (in grid, only visible on desktop) -->
+            <div class="hidden md:flex relative h-[500px] items-center justify-center perspective-1000">
+                <div id="hero-image-desktop" class="w-full h-full bg-contain bg-center bg-no-repeat relative z-10 opacity-0 transform translate-y-20 scale-90"
+                     style="background-image: url('merkleman-hero.png');">
+                     <div class="absolute inset-0 bg-gradient-to-t from-merkle-black to-transparent"></div>
+                </div>
+                <!-- Particle effects simulated via CSS/Divs -->
+                <div class="absolute w-64 h-64 bg-merkle-purple blur-[100px] opacity-20 animate-pulse"></div>
+            </div>
         </div>
     </section>
 
@@ -340,8 +338,8 @@
                 ease: "none"
             });
 
-            // 3. Reveal Hero Image
-            heroTl.to("#hero-image", {
+            // 3. Reveal Hero Image (both mobile and desktop)
+            heroTl.to("#hero-image-mobile, #hero-image-desktop", {
                 opacity: 1,
                 y: 0,
                 scale: 1,
