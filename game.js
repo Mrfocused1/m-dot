@@ -2143,10 +2143,16 @@ const PlayerController = {
                 // Death animation may have altered rotation/position/scale - restore to initial state
                 if (enemyModel) {
                     enemyModel.rotation.y = Math.PI; // Face away from player (180 degrees)
-                    enemyModel.position.set(0, 1.0, -15); // Reset to starting position
+                    enemyModel.position.set(0, 1.0, -15); // Reset to starting position (center lane, X=0)
                     enemyModel.scale.set(0.01, 0.01, 0.01); // Reset to correct scale
                     console.log('🔄 Enemy model transform reset (rotation, position, scale)');
                 }
+
+                // CRITICAL FIX: Reset enemy lane to center lane (lane 1)
+                // If enemy was in a different lane when hit, this prevents respawn to the side
+                EnemyController.currentLane = 1;
+                EnemyController.targetLane = 1;
+                console.log('🔄 Enemy lane reset to center (lane 1)');
 
                 enemyAnimations.run.reset();
                 enemyAnimations.run.play();
