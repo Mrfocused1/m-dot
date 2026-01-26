@@ -744,10 +744,16 @@ stage1LoadingManager.onLoad = () => {
     setTimeout(() => {
         Stage1LoadingScreen.complete();
 
-        // Update UI now that Stage 1 is ready
-        if (GameState.selectedLevel === 'chase') {
-            UI.updateUI();
-        }
+        // Start the game AFTER loading screen fades out (1000ms minimum + 500ms fade)
+        setTimeout(() => {
+            console.log('🎮 Starting gameplay after loading complete');
+            GameState.isRunning = true;
+
+            // Update UI now that Stage 1 is ready
+            if (GameState.selectedLevel === 'chase') {
+                UI.updateUI();
+            }
+        }, 1500);
     }, 300);
 };
 stage1LoadingManager.onError = (url) => {
@@ -6292,7 +6298,7 @@ function startGame() {
     console.log('Starting Stage 1...');
 
     GameState.screen = 'PLAYING';
-    GameState.isRunning = true;
+    GameState.isRunning = false; // Keep game paused until loading completes
     GameState.score = 0;
     GameState.lives = 3;
     PlayerController.init();
@@ -6304,8 +6310,9 @@ function startGame() {
     const charactersAlreadyLoaded = playerModel && enemyModel;
 
     if (charactersAlreadyLoaded) {
-        // Characters already loaded, no need for loading screen
+        // Characters already loaded, start game immediately
         console.log('Stage 1 assets already loaded, starting immediately');
+        GameState.isRunning = true;
         UI.updateUI();
     } else {
         // Show loading screen and load characters
@@ -6325,6 +6332,7 @@ function startGame() {
             if (!stage1AssetsLoaded) {
                 console.warn('⚠️ Stage 1 loading timeout - forcing complete');
                 Stage1LoadingScreen.complete();
+                GameState.isRunning = true;
                 UI.updateUI();
             }
         }, 10000);
