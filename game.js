@@ -3586,7 +3586,7 @@ class Pickup {
 
         if (wasActive) {
             this.lane = currentLane;
-            this.mesh.position.set(LANE_POSITIONS[this.lane], 0.4, currentZ);  // Raised to sit on ground
+            this.mesh.position.set(LANE_POSITIONS[this.lane], 0.6, currentZ);  // Raised to sit on ground
             scene.add(this.mesh);
         }
     }
@@ -3599,7 +3599,7 @@ class Pickup {
 
         this.active = true;
         this.lane = lane;
-        this.mesh.position.set(LANE_POSITIONS[lane], 0.4, zPosition);  // Raised to sit on ground
+        this.mesh.position.set(LANE_POSITIONS[lane], 0.6, zPosition);  // Raised to sit on ground
         scene.add(this.mesh);
     }
 
