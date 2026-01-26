@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FBX Material Inspector</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a2e; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0,0,0,0.9);
+            padding: 15px;
+            font-size: 12px;
+            z-index: 100;
+            max-height: 90vh;
+            overflow-y: auto;
+            max-width: 400px;
+        }
+        .material { margin: 10px 0; padding: 10px; border: 1px solid #444; }
+        .has-map { color: #4fc3f7; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>FBX Material Inspector</h3>
+        <div id="status">Loading...</div>
+        <div id="materials"></div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+        let scene, camera, renderer, model;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 6, 8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            scene.add(directionalLight);
+
+            loadAndInspect();
+            animate();
+        }
+
+        function loadAndInspect() {
+            const loader = new FBXLoader();
+            document.getElementById('status').textContent = 'Loading FBX...';
+
+            loader.load('Fast Run.fbx', (fbx) => {
+                model = fbx;
+                model.scale.set(0.01, 0.01, 0.01);
+                model.position.set(0, 1.0, 0);
+                model.rotation.y = Math.PI;
+
+                // DON'T modify materials - inspect them as-is
+                let materialInfo = '<h4>Materials Found:</h4>';
+                let materialCount = 0;
+
+                model.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        const materials = Array.isArray(child.material) ? child.material : [child.material];
+
+                        materials.forEach((mat, idx) => {
+                            materialCount++;
+                            materialInfo += `<div class="material">`;
+                            materialInfo += `<strong>Material ${materialCount}</strong><br>`;
+                            materialInfo += `Name: ${mat.name || 'Unnamed'}<br>`;
+                            materialInfo += `Type: ${mat.type}<br>`;
+                            materialInfo += `Color: rgb(${Math.round(mat.color.r * 255)}, ${Math.round(mat.color.g * 255)}, ${Math.round(mat.color.b * 255)})<br>`;
+
+                            if (mat.map) {
+                                materialInfo += `<span class="has-map">✓ Has Diffuse Texture (map)</span><br>`;
+                                materialInfo += `  Size: ${mat.map.image?.width || '?'}x${mat.map.image?.height || '?'}<br>`;
+                            } else {
+                                materialInfo += `✗ No Diffuse Texture<br>`;
+                            }
+
+                            if (mat.normalMap) materialInfo += `<span class="has-map">✓ Has Normal Map</span><br>`;
+                            if (mat.roughnessMap) materialInfo += `<span class="has-map">✓ Has Roughness Map</span><br>`;
+                            if (mat.metalnessMap) materialInfo += `<span class="has-map">✓ Has Metalness Map</span><br>`;
+                            if (mat.emissiveMap) materialInfo += `<span class="has-map">✓ Has Emissive Map</span><br>`;
+
+                            materialInfo += `</div>`;
+
+                            console.log(`Material ${materialCount}:`, mat);
+                        });
+                    }
+                });
+
+                document.getElementById('materials').innerHTML = materialInfo;
+                document.getElementById('status').textContent = `Found ${materialCount} material(s)`;
+
+                scene.add(model);
+
+                // Setup animation
+                if (fbx.animations && fbx.animations.length > 0) {
+                    const mixer = new THREE.AnimationMixer(model);
+                    const clip = fbx.animations[0];
+
+                    // Remove position track
+                    clip.tracks = clip.tracks.filter(t => t.name !== 'mixamorigHips.position');
+
+                    const action = mixer.clipAction(clip);
+                    action.setLoop(THREE.LoopRepeat, Infinity);
+                    action.play();
+
+                    function update() {
+                        mixer.update(0.016);
+                        requestAnimationFrame(update);
+                    }
+                    update();
+                }
+
+            }, undefined, (error) => {
+                console.error('Error:', error);
+                document.getElementById('status').textContent = 'ERROR: ' + error.message;
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (model) model.rotation.y += 0.005;
+            camera.lookAt(0, 1, 0);
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>

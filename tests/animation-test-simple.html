@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Animation Test - Minimal</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            font-size: 14px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div>Animation Test - Minimal</div>
+        <div id="status">Loading...</div>
+        <div id="debug"></div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+        let scene, camera, renderer, model, mixer, clock;
+        let frameCount = 0;
+
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 6, 8);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            scene.add(directionalLight);
+
+            // Clock
+            clock = new THREE.Clock();
+
+            // Load FBX
+            loadCharacter();
+
+            // Animate
+            animate();
+        }
+
+        function loadCharacter() {
+            const loader = new FBXLoader();
+
+            document.getElementById('status').textContent = 'Loading FBX...';
+
+            loader.load('Fast Run.fbx', (fbx) => {
+                model = fbx;
+                model.scale.set(0.01, 0.01, 0.01);
+                model.position.set(0, 0, 0);
+                model.rotation.y = Math.PI;
+
+                // Color it blue
+                model.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => mat.color.setHex(0x4fc3f7));
+                        } else {
+                            child.material.color.setHex(0x4fc3f7);
+                        }
+                    }
+                });
+
+                scene.add(model);
+                document.getElementById('status').textContent = 'Model loaded!';
+
+                // Setup animation - NO FILTERING, NO MODIFICATIONS
+                if (fbx.animations && fbx.animations.length > 0) {
+                    const clip = fbx.animations[0];
+
+                    console.log('=== ANIMATION INFO ===');
+                    console.log('Clip name:', clip.name);
+                    console.log('Clip duration:', clip.duration);
+                    console.log('Number of tracks:', clip.tracks.length);
+                    console.log('Track names:', clip.tracks.map(t => t.name).join(', '));
+
+                    // Use animation AS-IS, no modifications
+                    mixer = new THREE.AnimationMixer(model);
+                    const action = mixer.clipAction(clip);
+                    action.setLoop(THREE.LoopRepeat, Infinity);
+                    action.play();
+
+                    console.log('Animation started');
+                }
+
+            }, undefined, (error) => {
+                console.error('Error loading FBX:', error);
+                document.getElementById('status').textContent = 'ERROR: ' + error.message;
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            if (mixer) {
+                mixer.update(delta);
+                frameCount++;
+
+                // Log every 60 frames (~1 second)
+                if (frameCount % 60 === 0) {
+                    const debugInfo = `
+                        Frame: ${frameCount}
+                        Mixer time: ${mixer.time.toFixed(3)}
+                        Model visible: ${model.visible}
+                        Model position: (${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)})
+                        Model scale: (${model.scale.x.toFixed(3)}, ${model.scale.y.toFixed(3)}, ${model.scale.z.toFixed(3)})
+                    `.trim();
+
+                    document.getElementById('debug').innerHTML = debugInfo.replace(/\n/g, '<br>');
+                    console.log(debugInfo);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
+    </script>
+</body>
+</html>

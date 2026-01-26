@@ -7,6 +7,34 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ============================================================================
+// PRODUCTION CONSOLE WRAPPER
+// Conditionally disables console logs when DEBUG = false for production
+// ============================================================================
+const originalConsole = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error,
+    info: console.info
+};
+
+// Will be enabled/disabled based on DEBUG constant (line ~718)
+window._enableProductionLogging = function(enable) {
+    if (enable) {
+        console.log = originalConsole.log;
+        console.warn = originalConsole.warn;
+        console.info = originalConsole.info;
+        // Keep console.error always enabled for critical errors
+    } else {
+        console.log = () => {};
+        console.warn = () => {};
+        console.info = () => {};
+        // Keep console.error always enabled for critical errors
+    }
+};
+
+// Note: This will be called after DEBUG constant is defined (line ~718)
+
+// ============================================================================
 // ANIMATION VERSION SELECTOR SYSTEM
 // Based on Three.js AnimationAction research:
 // - https://threejs.org/docs/pages/AnimationAction.html
@@ -715,7 +743,10 @@ function cleanupWarmupObjects() {
 }
 
 // Debug mode
-const DEBUG = true;
+const DEBUG = false;
+
+// Enable/disable console logging based on DEBUG mode (reduces noise in production)
+window._enableProductionLogging(DEBUG);
 
 // ============================================================================
 // LEVEL CONFIGURATION - STARTING POSITIONS
@@ -771,6 +802,15 @@ let exitMarker = null;
 let urbanEnvironment = null;
 let environmentColliders = []; // Collision boxes for environment objects
 let debugCollisionBoxes = []; // Visual wireframes for debugging
+
+// Sky dome for Level 1 background
+let skyDome = null;
+const SKY_DOME_CONFIG = {
+    enabled: true,              // Enable/disable sky dome
+    rotationSpeed: 0.0005,      // Slow rotation (radians per frame)
+    scale: 100,                 // Size of dome (should encompass whole scene)
+    renderOrder: -1             // Render behind everything else
+};
 
 // Maze layout (1 = wall, 0 = corridor, 2 = exit)
 const MAZE_LAYOUT = [
@@ -3848,7 +3888,10 @@ const EnvironmentManager = {
         // Load 3D road model first
         this.loadRoadModel();
 
-        // Set bright background for Level 1
+        // Load sky dome for immersive background
+        this.loadSkyDome();
+
+        // Set bright background for Level 1 (fallback if sky dome doesn't load)
         scene.background = new THREE.Color(0x87CEEB); // Sky blue
 
         // Add bright lights for daytime scene
@@ -4039,6 +4082,60 @@ const EnvironmentManager = {
 
         // Update fallback road segments if they exist
         roadSegments.forEach(segment => segment.update(dt));
+    },
+
+    loadSkyDome() {
+        if (!SKY_DOME_CONFIG.enabled) {
+            console.log('Sky dome disabled in config');
+            return;
+        }
+
+        console.log('Loading sky dome...');
+
+        const loader = new GLTFLoader();
+        loader.load(
+            '/Users/paulbridges/Downloads/sky_dome_demo.glb',
+            // onLoad
+            (gltf) => {
+                skyDome = gltf.scene;
+
+                // Scale the dome to encompass the entire scene
+                skyDome.scale.setScalar(SKY_DOME_CONFIG.scale);
+
+                // Position at origin
+                skyDome.position.set(0, 0, 0);
+
+                // Render behind everything else
+                skyDome.traverse((child) => {
+                    if (child.isMesh) {
+                        child.renderOrder = SKY_DOME_CONFIG.renderOrder;
+                        // Make sure sky dome doesn't receive shadows
+                        child.receiveShadow = false;
+                        child.castShadow = false;
+                        // Double-sided rendering to see from inside
+                        child.material.side = THREE.BackSide; // Important: render inside of dome
+                    }
+                });
+
+                scene.add(skyDome);
+                console.log('✅ Sky dome loaded and added to scene');
+                console.log('   Scale:', SKY_DOME_CONFIG.scale);
+                console.log('   Rotation speed:', SKY_DOME_CONFIG.rotationSpeed);
+            },
+            // onProgress
+            (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percent = (xhr.loaded / xhr.total * 100).toFixed(2);
+                    console.log('Sky dome loading: ' + percent + '%');
+                }
+            },
+            // onError
+            (error) => {
+                console.error('Error loading sky dome:', error);
+                console.log('Falling back to solid color background');
+                // Sky dome failed to load, keep the blue background
+            }
+        );
     }
 };
 
@@ -7278,6 +7375,11 @@ function animate() {
         if (window._mixerDebugCounter % 120 === 0) { // Every ~2 seconds at 60fps
             console.log('[MIXER DEBUG] Shooter mixer updating, delta:', delta.toFixed(4), 'actions:', shooterMixer._actions.length);
         }
+    }
+
+    // Rotate sky dome for motion illusion (only in Level 1)
+    if (skyDome && SKY_DOME_CONFIG.enabled && GameState.selectedLevel === 'chase') {
+        skyDome.rotation.y += SKY_DOME_CONFIG.rotationSpeed;
     }
 
     // Update hazard lights flashing
