@@ -4141,10 +4141,36 @@ const EnvironmentManager = {
                             child.material.emissiveIntensity = 2.0;
                         }
 
-                        // Ensure emissive map is applied if it exists
+                        // FIX PIXELATION: Improve texture quality with anisotropic filtering
                         if (child.material.emissiveMap) {
-                            child.material.emissiveMap.needsUpdate = true;
+                            const texture = child.material.emissiveMap;
+
+                            // Enable maximum anisotropic filtering (reduces pixelation)
+                            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+                            // Use best texture filtering
+                            texture.minFilter = THREE.LinearMipMapLinearFilter;
+                            texture.magFilter = THREE.LinearFilter;
+
+                            // Generate mipmaps for smoother scaling
+                            texture.generateMipmaps = true;
+
+                            texture.needsUpdate = true;
+
+                            console.log('     Enhanced texture: anisotropy =', texture.anisotropy);
                         }
+
+                        // Also improve any other texture maps
+                        ['map', 'normalMap', 'roughnessMap', 'metalnessMap'].forEach(mapName => {
+                            if (child.material[mapName]) {
+                                const texture = child.material[mapName];
+                                texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                texture.minFilter = THREE.LinearMipMapLinearFilter;
+                                texture.magFilter = THREE.LinearFilter;
+                                texture.generateMipmaps = true;
+                                texture.needsUpdate = true;
+                            }
+                        });
 
                         // Enable depth test but disable depth write (render behind everything)
                         child.material.depthTest = true;
