@@ -1237,6 +1237,7 @@ const PlayerController = {
     activeThrownItem: null, // Reference to the currently thrown item
     isFollowingThrowItem: false, // Camera follow state
     throwCameraTimer: 0, // Timer for camera follow duration
+    throwResultShown: false, // Whether we've shown the throw result text
 
     init() {
         this.currentLane = 1;
@@ -1253,6 +1254,7 @@ const PlayerController = {
         this.activeThrownItem = null;
         this.isFollowingThrowItem = false;
         this.throwCameraTimer = 0;
+        this.throwResultShown = false;
         // Clear any existing throw timeout
         if (this.throwTimeout) {
             clearTimeout(this.throwTimeout);
@@ -1310,9 +1312,9 @@ const PlayerController = {
         // Update throw camera follow timer
         if (this.isFollowingThrowItem) {
             this.throwCameraTimer += dt;
-            // End camera follow after 2 seconds
-            if (this.throwCameraTimer >= 2.0) {
-                console.log('📷 Camera follow timeout (2 seconds reached)');
+            // End camera follow after 10 seconds (should be plenty of time for throw + result + fade)
+            if (this.throwCameraTimer >= 10.0) {
+                console.log('📷 Camera follow timeout (10 seconds reached)');
                 this.endThrowCameraFollow();
             }
         }
@@ -1489,14 +1491,6 @@ const PlayerController = {
             return;
         }
 
-        // If still following throw item, wait until camera follow ends
-        if (this.isFollowingThrowItem) {
-            console.log('🎯 Throw animation finished but camera still following item - delaying cleanup');
-            // Check again in a moment
-            setTimeout(() => this.finishThrow(), 100);
-            return;
-        }
-
         console.log('🎯 Throw finished! Resetting states...');
 
         // Clear the timeout if it exists
@@ -1576,8 +1570,8 @@ const PlayerController = {
                     console.log('🎯 Item hit enemy!');
                     EnemyController.takeDamage();
                     scene.remove(thrownItem);
-                    // End camera follow after hit
-                    this.endThrowCameraFollow();
+                    // Show "Got em!" text and fade
+                    this.showThrowResult(true);
                     return;
                 }
             }
@@ -1586,8 +1580,8 @@ const PlayerController = {
             if (Math.abs(thrownItem.position.z - throwStartZ) > throwDistance) {
                 console.log('🎯 Item missed - traveled too far');
                 scene.remove(thrownItem);
-                // End camera follow after miss
-                this.endThrowCameraFollow();
+                // Show "Missed!" text and fade
+                this.showThrowResult(false);
                 return;
             }
 
@@ -1602,6 +1596,103 @@ const PlayerController = {
         this.isFollowingThrowItem = false;
         this.activeThrownItem = null;
         this.throwCameraTimer = 0;
+        this.throwResultShown = false;
+    },
+
+    showThrowResult(hit) {
+        if (this.throwResultShown) return; // Only show once per throw
+        this.throwResultShown = true;
+
+        // Create overlay for throw result
+        const overlay = document.createElement('div');
+        overlay.id = 'throw-result-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            pointer-events: none;
+        `;
+
+        const text = document.createElement('div');
+        text.style.cssText = `
+            font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 80px;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: ${hit ? '#00ff41' : '#ff4444'};
+            text-shadow: 0 0 30px ${hit ? 'rgba(0, 255, 65, 0.8)' : 'rgba(255, 68, 68, 0.8)'};
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.3s ease-out;
+        `;
+        text.textContent = hit ? 'Got em!' : 'Missed!';
+
+        overlay.appendChild(text);
+        document.body.appendChild(overlay);
+
+        // Animate text in
+        setTimeout(() => {
+            text.style.opacity = '1';
+            text.style.transform = 'scale(1)';
+        }, 50);
+
+        // Hold for 1 second, then fade screen and return to gameplay
+        setTimeout(() => {
+            this.fadeAndReturnToGameplay(overlay);
+        }, 1500);
+    },
+
+    fadeAndReturnToGameplay(resultOverlay) {
+        // Create black fade overlay
+        const fadeOverlay = document.createElement('div');
+        fadeOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: black;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        `;
+        document.body.appendChild(fadeOverlay);
+
+        // Fade to black
+        setTimeout(() => {
+            fadeOverlay.style.opacity = '1';
+        }, 50);
+
+        // After fade to black, clean up and return to gameplay
+        setTimeout(() => {
+            // Remove result text
+            if (resultOverlay && resultOverlay.parentNode) {
+                resultOverlay.parentNode.removeChild(resultOverlay);
+            }
+
+            // End camera follow and return to normal
+            this.endThrowCameraFollow();
+            this.finishThrow();
+
+            // Fade back in
+            setTimeout(() => {
+                fadeOverlay.style.opacity = '0';
+
+                // Remove fade overlay after transition
+                setTimeout(() => {
+                    if (fadeOverlay && fadeOverlay.parentNode) {
+                        fadeOverlay.parentNode.removeChild(fadeOverlay);
+                    }
+                }, 500);
+            }, 100);
+        }, 500);
     },
 
 
