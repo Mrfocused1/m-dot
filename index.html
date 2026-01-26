@@ -48,8 +48,16 @@
         body {
             background-color: #050505;
             color: #ffffff;
-            overflow-x: hidden;
+            overflow: hidden; /* No scrolling */
             cursor: none; /* Custom cursor */
+            height: 100vh;
+            width: 100vw;
+        }
+
+        html {
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
         }
 
         /* Custom Scrollbar */
@@ -111,6 +119,45 @@
             stroke-dasharray: 1000;
             stroke-dashoffset: 1000;
         }
+
+        /* Mobile Layout */
+        @media (max-width: 768px) {
+            #cursor {
+                display: none; /* Hide custom cursor on mobile */
+            }
+
+            body {
+                cursor: auto;
+            }
+
+            .mobile-logo {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                width: 60px;
+                height: 60px;
+                z-index: 50;
+            }
+
+            .mobile-content {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 20;
+                width: 90%;
+                text-align: center;
+            }
+
+            .mobile-hero-bg {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100vh;
+                z-index: 10;
+            }
+        }
     </style>
 </head>
 <body class="font-body selection:bg-merkle-green selection:text-black">
@@ -161,7 +208,7 @@
     <div class="fixed inset-0 bg-grid-pattern bg-[length:40px_40px] pointer-events-none z-[-1] opacity-20"></div>
 
     <!-- HERO SECTION -->
-    <section class="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+    <section class="relative h-screen flex items-center justify-center overflow-hidden">
         <!-- Background Vortex Elements -->
         <div class="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
             <svg id="hero-vortex" width="800" height="800" viewBox="0 0 800 800" class="animate-spin-slow">
@@ -171,38 +218,47 @@
             </svg>
         </div>
 
-        <div class="container mx-auto px-6 z-10 grid md:grid-cols-2 gap-12 items-center">
+        <!-- Mobile Logo (only visible on mobile) -->
+        <div class="mobile-logo md:hidden">
+            <img id="logo-image-mobile" src="merkleman-logo.png" alt="Merkle Man Logo" class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(0,255,65,0.5)] opacity-0" />
+        </div>
+
+        <!-- Hero Background Image -->
+        <div class="absolute inset-0 md:relative md:h-[500px] flex items-center justify-center perspective-1000 mobile-hero-bg">
+            <div id="hero-image" class="w-full h-full bg-contain bg-center bg-no-repeat relative z-10 opacity-0 transform translate-y-20 scale-90"
+                 style="background-image: url('merkleman-hero.png');">
+                 <div class="absolute inset-0 bg-gradient-to-t from-merkle-black/80 md:from-merkle-black to-transparent"></div>
+            </div>
+            <!-- Particle effects simulated via CSS/Divs -->
+            <div class="absolute w-64 h-64 bg-merkle-purple blur-[100px] opacity-20 animate-pulse"></div>
+        </div>
+
+        <!-- Content Overlay (mobile) / Side by side (desktop) -->
+        <div class="container mx-auto px-6 z-20 mobile-content md:relative md:grid md:grid-cols-2 md:gap-12 md:items-center">
             <div class="text-center md:text-left">
-                <!-- Animated Logo -->
-                <div class="w-32 h-32 mx-auto md:mx-0 mb-6 relative">
-                    <img id="logo-image" src="merkleman-logo.png" alt="Merkle Man Logo" class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(0,255,65,0.5)] opacity-0" />
+                <!-- Desktop Logo (only visible on desktop) -->
+                <div class="hidden md:block w-32 h-32 mb-6 relative">
+                    <img id="logo-image-desktop" src="merkleman-logo.png" alt="Merkle Man Logo" class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(0,255,65,0.5)] opacity-0" />
                 </div>
 
-                <h1 class="text-5xl md:text-7xl font-display font-black leading-tight mb-4">
+                <h1 class="text-2xl md:text-7xl font-display font-black leading-tight mb-4">
                     <span id="hero-title" class="text-transparent bg-clip-text bg-gradient-to-r from-merkle-green to-merkle-blue">The Merkle Man Game</span>
                 </h1>
-                <p id="hero-tagline" class="text-xl md:text-2xl text-gray-400 font-light tracking-wider mb-8 h-8"></p> <!-- Typed text container -->
+                <p id="hero-tagline" class="text-lg md:text-2xl text-gray-300 md:text-gray-400 font-light tracking-wider mb-6 md:mb-8 min-h-[1.5em] md:h-8"></p>
 
-                <div class="flex flex-col md:flex-row gap-4 justify-center md:justify-start">
-                    <a href="game.html" class="magnet-btn group relative px-8 py-4 bg-merkle-green text-black font-bold font-display uppercase tracking-widest overflow-hidden no-underline">
+                <div class="flex flex-col gap-3 md:flex-row md:gap-4 md:justify-start">
+                    <a href="game.html" class="magnet-btn group relative px-6 py-3 md:px-8 md:py-4 bg-merkle-green text-black font-bold font-display uppercase tracking-widest overflow-hidden no-underline text-sm md:text-base">
                         <span class="relative z-10">Play Game</span>
                         <div class="absolute inset-0 bg-white transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300 z-0"></div>
                     </a>
-                    <button class="magnet-btn px-8 py-4 border border-merkle-purple text-merkle-purple font-bold font-display uppercase tracking-widest hover:bg-merkle-purple/10 transition-colors">
+                    <button class="magnet-btn px-6 py-3 md:px-8 md:py-4 border border-merkle-purple text-merkle-purple font-bold font-display uppercase tracking-widest hover:bg-merkle-purple/10 transition-colors text-sm md:text-base">
                         Instructions
                     </button>
                 </div>
             </div>
 
-            <!-- Hero Silhouette -->
-            <div class="relative h-[500px] flex items-center justify-center perspective-1000">
-                <div id="hero-image" class="w-full h-full bg-contain bg-center bg-no-repeat relative z-10 opacity-0 transform translate-y-20 scale-90"
-                     style="background-image: url('merkleman-hero.png');">
-                     <div class="absolute inset-0 bg-gradient-to-t from-merkle-black to-transparent"></div>
-                </div>
-                <!-- Particle effects simulated via CSS/Divs -->
-                <div class="absolute w-64 h-64 bg-merkle-purple blur-[100px] opacity-20 animate-pulse"></div>
-            </div>
+            <!-- Spacer for desktop grid -->
+            <div class="hidden md:block"></div>
         </div>
     </section>
 
@@ -270,8 +326,8 @@
 
             // --- Hero Animation Timeline (Previously global) ---
 
-            // 1. Fade in Logo
-            heroTl.to("#logo-image", { opacity: 1, duration: 1, ease: "power2.out" });
+            // 1. Fade in Logo (both mobile and desktop)
+            heroTl.to("#logo-image-mobile, #logo-image-desktop", { opacity: 1, duration: 1, ease: "power2.out" });
 
             // 2. Type Text
             heroTl.to("#hero-title", {
