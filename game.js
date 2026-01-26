@@ -2549,11 +2549,12 @@ class Obstacle {
 
     update(dt) {
         if (this.active) {
-            // Barriers are completely stationary - player runs past them
-            // No movement - barriers stay fixed in world position
+            // Barriers move with the road (same speed) - attached to road surface
+            const roadSpeed = GameState.gameSpeed * 2.5;
+            this.mesh.position.z += roadSpeed * dt;
 
-            // Remove barriers that are far behind the player
-            if (playerModel && this.mesh.position.z > playerModel.position.z + 20) {
+            // Remove barriers that passed the camera
+            if (this.mesh.position.z > 15) {
                 this.deactivate();
             }
         }
