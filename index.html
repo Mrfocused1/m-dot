@@ -3,411 +3,320 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAP TAG - Get Your Tooth Back!</title>
+    <title>Merkle Man | Get Your Tooth Back</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- GSAP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/TextPlugin.min.js"></script>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        merkle: {
+                            black: '#050505',
+                            dark: '#0a0b10',
+                            green: '#00ff41',
+                            purple: '#bc13fe',
+                            blue: '#00f3ff'
+                        }
+                    },
+                    fontFamily: {
+                        display: ['Orbitron', 'sans-serif'],
+                        body: ['Rajdhani', 'sans-serif'],
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "linear-gradient(to right, #00ff4105 1px, transparent 1px), linear-gradient(to bottom, #00ff4105 1px, transparent 1px)",
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        body {
+            background-color: #050505;
+            color: #ffffff;
+            overflow-x: hidden;
+            cursor: none; /* Custom cursor */
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            background: #000;
-            color: #fff;
-            overflow-x: hidden;
-            cursor: none;
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0b10;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #00ff41;
+            border-radius: 4px;
+        }
+
+        /* Glow Utilities */
+        .glow-text-green { text-shadow: 0 0 10px rgba(0, 255, 65, 0.7); }
+        .glow-text-purple { text-shadow: 0 0 10px rgba(188, 19, 254, 0.7); }
+        .glow-box-green { box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); }
+
+        .neon-border {
+            position: relative;
+        }
+        .neon-border::after {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            background: linear-gradient(45deg, #00ff41, #bc13fe, #00f3ff);
+            z-index: -1;
+            filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .neon-border:hover::after {
+            opacity: 1;
         }
 
         /* Custom Cursor */
-        .cursor {
+        #cursor {
             width: 20px;
             height: 20px;
-            border: 2px solid #4fc3f7;
+            border: 2px solid #00ff41;
             border-radius: 50%;
             position: fixed;
             pointer-events: none;
             z-index: 9999;
-            transition: transform 0.15s ease, width 0.15s ease, height 0.15s ease;
+            transform: translate(-50%, -50%);
+            transition: width 0.2s, height 0.2s, background-color 0.2s;
+            mix-blend-mode: difference;
         }
-
-        .cursor.hover {
+        #cursor.hovered {
             width: 50px;
             height: 50px;
-            background: rgba(79, 195, 247, 0.1);
+            background-color: rgba(0, 255, 65, 0.2);
+            border-color: #bc13fe;
         }
 
-        /* Loading Screen */
-        .loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-        }
-
-        .vs-container {
-            text-align: center;
-        }
-
-        .fighter-name {
-            font-size: 4rem;
-            font-weight: 900;
-            letter-spacing: 0.1em;
-            margin: 20px 0;
-        }
-
-        .fighter-name.left {
-            color: #4fc3f7;
-        }
-
-        .fighter-name.right {
-            color: #ff4757;
-        }
-
-        .vs-text {
-            font-size: 6rem;
-            font-weight: 900;
-            color: #fff;
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-            margin: 40px 0;
-        }
-
-        /* Hero Section */
-        .hero {
-            position: relative;
-            width: 100%;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        /* Spinning Vortex Background */
-        .vortex {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 150%;
-            height: 150%;
-            transform: translate(-50%, -50%);
-            background: radial-gradient(circle at center,
-                transparent 0%,
-                rgba(79, 195, 247, 0.05) 25%,
-                rgba(255, 71, 87, 0.05) 50%,
-                transparent 75%);
-            animation: spin 20s linear infinite;
-            z-index: 1;
-        }
-
-        @keyframes spin {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-
-        /* Logo Container */
-        .logo-container {
-            position: relative;
-            z-index: 2;
-            margin-bottom: 30px;
-        }
-
-        .logo {
-            width: 300px;
-            height: auto;
-        }
-
-        .logo-svg {
-            fill: none;
-            stroke: #4fc3f7;
-            stroke-width: 3;
+        /* SVG Utilities */
+        .path-draw {
             stroke-dasharray: 1000;
             stroke-dashoffset: 1000;
         }
-
-        /* Tagline */
-        .tagline {
-            font-size: 1.5rem;
-            color: #fff;
-            text-align: center;
-            margin-bottom: 50px;
-            z-index: 2;
-            position: relative;
-            min-height: 2em;
-        }
-
-        .typed-cursor {
-            opacity: 1;
-            animation: blink 0.7s infinite;
-        }
-
-        @keyframes blink {
-            0%, 49% { opacity: 1; }
-            50%, 100% { opacity: 0; }
-        }
-
-        /* CTA Buttons */
-        .cta-container {
-            display: flex;
-            gap: 30px;
-            z-index: 2;
-            position: relative;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .cta-btn {
-            padding: 18px 45px;
-            font-size: 1.2rem;
-            font-weight: 700;
-            text-decoration: none;
-            border-radius: 50px;
-            transition: all 0.3s ease;
-            cursor: none;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .cta-btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s ease, height 0.6s ease;
-        }
-
-        .cta-btn:hover::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        .cta-btn span {
-            position: relative;
-            z-index: 1;
-        }
-
-        .cta-primary {
-            background: #4fc3f7;
-            color: #000;
-            border: 2px solid #4fc3f7;
-        }
-
-        .cta-primary:hover {
-            background: transparent;
-            color: #4fc3f7;
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.3);
-        }
-
-        .cta-secondary {
-            background: transparent;
-            color: #fff;
-            border: 2px solid #fff;
-        }
-
-        .cta-secondary:hover {
-            background: #fff;
-            color: #000;
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.3);
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .fighter-name {
-                font-size: 2rem;
-            }
-
-            .vs-text {
-                font-size: 3rem;
-            }
-
-            .logo {
-                width: 200px;
-            }
-
-            .tagline {
-                font-size: 1.2rem;
-                padding: 0 20px;
-            }
-
-            .cta-container {
-                flex-direction: column;
-                gap: 20px;
-            }
-
-            .cta-btn {
-                width: 250px;
-            }
-        }
     </style>
 </head>
-<body>
-    <!-- Custom Cursor -->
-    <div class="cursor"></div>
+<body class="font-body selection:bg-merkle-green selection:text-black">
 
-    <!-- Loading Screen -->
-    <div class="loading-screen">
-        <div class="vs-container">
-            <div class="fighter-name left">GAP TAG</div>
-            <div class="vs-text">VS</div>
-            <div class="fighter-name right">TOOTH THIEF</div>
+    <!-- Custom Cursor -->
+    <div id="cursor"></div>
+
+    <!-- LOADING SCREEN (Street Fighter Style) -->
+    <div id="loader" class="fixed inset-0 z-[100] flex overflow-hidden font-display bg-black select-none">
+        <!-- Left Side (Hero) -->
+        <div id="loader-left" class="w-1/2 h-full bg-merkle-dark border-r-4 border-merkle-green flex flex-col items-end justify-center pr-4 md:pr-10 relative transform -translate-x-full z-10">
+            <div class="text-merkle-green text-4xl md:text-6xl font-black italic tracking-tighter">MERKLE</div>
+            <div class="text-white text-3xl md:text-5xl font-bold uppercase">Man</div>
+            <div class="mt-4 px-4 py-1 bg-merkle-green text-black font-bold text-xs uppercase tracking-widest">Player 1</div>
+            <!-- Decorative grid -->
+            <div class="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
+            <!-- Character Portrait Silhouette (CSS-based) -->
+             <div class="absolute bottom-0 left-0 w-full h-3/4 opacity-10 pointer-events-none" style="background: radial-gradient(circle at bottom left, #00ff41, transparent 60%);"></div>
+        </div>
+
+        <!-- Right Side (Villain) -->
+        <div id="loader-right" class="w-1/2 h-full bg-[#1a0505] border-l-4 border-red-600 flex flex-col items-start justify-center pl-4 md:pl-10 relative transform translate-x-full z-10">
+            <div class="text-red-500 text-4xl md:text-6xl font-black italic tracking-tighter text-right md:text-left">TOOTH</div>
+            <div class="text-white text-3xl md:text-5xl font-bold uppercase text-right md:text-left">THIEF</div>
+            <div class="mt-4 px-4 py-1 bg-red-600 text-white font-bold text-xs uppercase tracking-widest">Challenger</div>
+            <!-- Decorative noise -->
+            <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, #ff0000 0, #ff0000 1px, transparent 0, transparent 50%); background-size: 10px 10px;"></div>
+             <div class="absolute bottom-0 right-0 w-full h-3/4 opacity-10 pointer-events-none" style="background: radial-gradient(circle at bottom right, #ff0000, transparent 60%);"></div>
+        </div>
+
+        <!-- Center VS Logo -->
+        <div id="loader-vs" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center opacity-0 scale-0">
+            <div class="relative">
+                <div class="text-8xl md:text-9xl font-black italic text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_0_30px_rgba(234,179,8,0.8)]" style="-webkit-text-stroke: 2px white;">
+                    VS
+                </div>
+                <div class="absolute inset-0 animate-pulse mix-blend-overlay bg-yellow-400 blur-xl opacity-50"></div>
+            </div>
+        </div>
+
+        <!-- Loading Text -->
+        <div id="loader-text" class="absolute bottom-10 left-1/2 transform -translate-x-1/2 text-white/50 font-mono text-xs md:text-sm tracking-[0.5em] z-20 opacity-0">
+            INITIALIZING_GAME_DATA...
         </div>
     </div>
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <!-- Spinning Vortex Background -->
-        <div class="vortex"></div>
+    <!-- Background Grid -->
+    <div class="fixed inset-0 bg-grid-pattern bg-[length:40px_40px] pointer-events-none z-[-1] opacity-20"></div>
 
-        <!-- Logo -->
-        <div class="logo-container">
-            <svg class="logo" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
-                <text x="150" y="60" font-family="Arial, sans-serif" font-size="48" font-weight="900" text-anchor="middle" class="logo-svg">GAP TAG</text>
+    <!-- HERO SECTION -->
+    <section class="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+        <!-- Background Vortex Elements -->
+        <div class="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
+            <svg id="hero-vortex" width="800" height="800" viewBox="0 0 800 800" class="animate-spin-slow">
+                <circle cx="400" cy="400" r="300" stroke="#00ff41" stroke-width="1" fill="none" stroke-dasharray="20 10" />
+                <circle cx="400" cy="400" r="250" stroke="#bc13fe" stroke-width="1" fill="none" stroke-dasharray="10 30" />
+                <circle cx="400" cy="400" r="200" stroke="#00f3ff" stroke-width="2" fill="none" stroke-dasharray="50 50" />
             </svg>
         </div>
 
-        <!-- Tagline -->
-        <div class="tagline">
-            <span id="typed-text"></span><span class="typed-cursor">|</span>
-        </div>
+        <div class="container mx-auto px-6 z-10 grid md:grid-cols-2 gap-12 items-center">
+            <div class="text-center md:text-left">
+                <!-- Animated Logo SVG -->
+                <div class="w-32 h-32 mx-auto md:mx-0 mb-6 relative">
+                    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full text-merkle-green drop-shadow-[0_0_15px_rgba(0,255,65,0.5)]">
+                        <path id="logo-m" class="path-draw" d="M20 80 V20 L50 50 L80 20 V80 M50 50 V80" />
+                        <circle id="logo-circle" class="path-draw" cx="50" cy="50" r="45" stroke-width="2" />
+                    </svg>
+                </div>
 
-        <!-- CTA Buttons -->
-        <div class="cta-container">
-            <a href="game.html" class="cta-btn cta-primary">
-                <span>Play Game</span>
-            </a>
-            <a href="#trailer" class="cta-btn cta-secondary">
-                <span>Watch Trailer</span>
-            </a>
+                <h1 class="text-5xl md:text-7xl font-display font-black leading-tight mb-4">
+                    ENTER <br>
+                    <span id="hero-title" class="text-transparent bg-clip-text bg-gradient-to-r from-merkle-green to-merkle-blue">MERKLE MAN</span>
+                </h1>
+                <p id="hero-tagline" class="text-xl md:text-2xl text-gray-400 font-light tracking-wider mb-8 h-8"></p> <!-- Typed text container -->
+
+                <div class="flex flex-col md:flex-row gap-4 justify-center md:justify-start">
+                    <a href="game.html" class="magnet-btn group relative px-8 py-4 bg-merkle-green text-black font-bold font-display uppercase tracking-widest overflow-hidden no-underline">
+                        <span class="relative z-10">Play Game</span>
+                        <div class="absolute inset-0 bg-white transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300 z-0"></div>
+                    </a>
+                    <button class="magnet-btn px-8 py-4 border border-merkle-purple text-merkle-purple font-bold font-display uppercase tracking-widest hover:bg-merkle-purple/10 transition-colors">
+                        Watch Trailer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hero Silhouette -->
+            <div class="relative h-[500px] flex items-center justify-center perspective-1000">
+                <div id="hero-image" class="w-full h-full bg-contain bg-center bg-no-repeat relative z-10 opacity-0 transform translate-y-20 scale-90"
+                     style="background-image: url('https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=1965&auto=format&fit=crop'); clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);">
+                     <div class="absolute inset-0 bg-gradient-to-t from-merkle-black to-transparent"></div>
+                </div>
+                <!-- Particle effects simulated via CSS/Divs -->
+                <div class="absolute w-64 h-64 bg-merkle-purple blur-[100px] opacity-20 animate-pulse"></div>
+            </div>
         </div>
     </section>
 
+    <!-- LOGIC -->
     <script>
-        // Custom Cursor
-        const cursor = document.querySelector('.cursor');
-        const buttons = document.querySelectorAll('.cta-btn');
+       // Initialize Icons
+        lucide.createIcons();
 
-        document.addEventListener('mousemove', (e) => {
-            gsap.to(cursor, {
-                x: e.clientX,
-                y: e.clientY,
-                duration: 0.15,
-                ease: 'power2.out'
+        // Wait for Load
+        window.addEventListener('load', () => {
+            gsap.registerPlugin(TextPlugin);
+
+            // --- Custom Cursor Logic ---
+            const cursor = document.getElementById('cursor');
+            document.addEventListener('mousemove', (e) => {
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
             });
-        });
 
-        buttons.forEach(btn => {
-            btn.addEventListener('mouseenter', () => {
-                cursor.classList.add('hover');
+            const interactiveElements = document.querySelectorAll('a, button, input');
+            interactiveElements.forEach(el => {
+                el.addEventListener('mouseenter', () => cursor.classList.add('hovered'));
+                el.addEventListener('mouseleave', () => cursor.classList.remove('hovered'));
             });
-            btn.addEventListener('mouseleave', () => {
-                cursor.classList.remove('hover');
-            });
-        });
 
-        // Magnetic Button Effect
-        buttons.forEach(btn => {
-            btn.addEventListener('mousemove', (e) => {
-                const rect = btn.getBoundingClientRect();
-                const x = e.clientX - rect.left - rect.width / 2;
-                const y = e.clientY - rect.top - rect.height / 2;
-
-                gsap.to(btn, {
-                    x: x * 0.3,
-                    y: y * 0.3,
-                    duration: 0.3,
-                    ease: 'power2.out'
+            // --- Magnetic Buttons ---
+            const magnets = document.querySelectorAll('.magnet-btn');
+            magnets.forEach((magnet) => {
+                magnet.addEventListener('mousemove', (e) => {
+                    const rect = magnet.getBoundingClientRect();
+                    const x = e.clientX - rect.left - rect.width / 2;
+                    const y = e.clientY - rect.top - rect.height / 2;
+                    gsap.to(magnet, { duration: 0.3, x: x * 0.2, y: y * 0.2 });
+                });
+                magnet.addEventListener('mouseleave', () => {
+                    gsap.to(magnet, { duration: 0.3, x: 0, y: 0 });
                 });
             });
 
-            btn.addEventListener('mouseleave', () => {
-                gsap.to(btn, {
-                    x: 0,
-                    y: 0,
-                    duration: 0.5,
-                    ease: 'elastic.out(1, 0.3)'
-                });
-            });
-        });
+            // --- LOADING SCREEN ANIMATION ---
+            const heroTl = gsap.timeline({ paused: true }); // Pause hero until loaded
 
-        // Loading Screen Animation
-        const tl = gsap.timeline();
-
-        tl.from('.fighter-name.left', {
-            x: -200,
-            opacity: 0,
-            duration: 0.8,
-            ease: 'power3.out'
-        })
-        .from('.vs-text', {
-            scale: 0,
-            opacity: 0,
-            duration: 0.5,
-            ease: 'back.out(1.7)'
-        }, '-=0.3')
-        .from('.fighter-name.right', {
-            x: 200,
-            opacity: 0,
-            duration: 0.8,
-            ease: 'power3.out'
-        }, '-=0.5')
-        .to('.loading-screen', {
-            opacity: 0,
-            duration: 0.5,
-            delay: 1,
-            onComplete: () => {
-                document.querySelector('.loading-screen').style.display = 'none';
-                animateLogo();
-                typeTagline();
-            }
-        });
-
-        // Logo SVG Animation
-        function animateLogo() {
-            const logoPath = document.querySelector('.logo-svg');
-            gsap.to(logoPath, {
-                strokeDashoffset: 0,
-                duration: 2,
-                ease: 'power2.inOut',
+            const loaderTl = gsap.timeline({
                 onComplete: () => {
-                    gsap.to(logoPath, {
-                        fill: '#4fc3f7',
-                        duration: 0.5
-                    });
+                    document.getElementById('loader').style.display = 'none';
+                    heroTl.play(); // Start Hero Logic
                 }
             });
-        }
 
-        // Typed Tagline Effect
-        function typeTagline() {
-            const text = "Chase. Dodge. Get your tooth back.";
-            const typedText = document.getElementById('typed-text');
-            let index = 0;
+            // 1. Panels Slide In (Impact)
+            loaderTl.to("#loader-left", { x: "0%", duration: 0.8, ease: "power4.inOut" })
+                    .to("#loader-right", { x: "0%", duration: 0.8, ease: "power4.inOut" }, "<")
+            // 2. VS Slam & Shake
+                    .to("#loader-vs", { scale: 1, opacity: 1, duration: 0.5, ease: "elastic.out(1, 0.4)" })
+                    .to("#loader", { x: "+=5", y: "+=5", repeat: 5, duration: 0.04, yoyo: true }, "<0.1") // Screen Shake
+            // 3. Text Type/Flash
+                    .to("#loader-text", { opacity: 1, duration: 0.1, repeat: 3, yoyo: true }, "+=0.2")
+                    .to({}, { duration: 1 }) // Wait for "load"
+            // 4. Exit Animation (Curtain Open)
+                    .to("#loader-vs", { scale: 0, opacity: 0, duration: 0.3 })
+                    .to("#loader-text", { opacity: 0, duration: 0.2 }, "<")
+                    .to("#loader-left", { x: "-100%", duration: 0.8, ease: "power2.inOut" })
+                    .to("#loader-right", { x: "100%", duration: 0.8, ease: "power2.inOut" }, "<");
 
-            function type() {
-                if (index < text.length) {
-                    typedText.textContent += text.charAt(index);
-                    index++;
-                    setTimeout(type, 80);
-                }
-            }
 
-            setTimeout(type, 500);
-        }
+            // --- Hero Animation Timeline (Previously global) ---
+
+            // 1. Draw "M" Logo
+            heroTl.to("#logo-m", { strokeDashoffset: 0, duration: 1.5, ease: "power2.inOut" })
+                  .to("#logo-circle", { strokeDashoffset: 0, duration: 1, ease: "power2.out" }, "-=0.5");
+
+            // 2. Type Text
+            heroTl.to("#hero-title", {
+                duration: 0.5,
+                opacity: 1,
+                ease: "power2.out"
+            }).to("#hero-tagline", {
+                duration: 2,
+                text: "Chase down the thief. Get your tooth back.",
+                ease: "none"
+            });
+
+            // 3. Reveal Hero Image
+            heroTl.to("#hero-image", {
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                duration: 1.2,
+                ease: "elastic.out(1, 0.5)"
+            }, "-=1.5");
+
+            // --- Vortex Spin (Runs always) ---
+            gsap.to("#hero-vortex", {
+                rotation: 360,
+                transformOrigin: "center center",
+                repeat: -1,
+                duration: 20,
+                ease: "linear"
+            });
+        });
     </script>
+
+    <style>
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin-slow 20s linear infinite;
+        }
+    </style>
 </body>
 </html>
