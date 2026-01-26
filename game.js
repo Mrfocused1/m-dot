@@ -1559,6 +1559,17 @@ const PlayerController = {
             thrownItem.rotation.x += 0.2;
             thrownItem.rotation.y += 0.15;
 
+            // Check collision with enemy
+            if (enemyModel) {
+                const distance = thrownItem.position.distanceTo(enemyModel.position);
+                if (distance < 2.0) { // Hit detection radius
+                    console.log('🎯 Item hit enemy!');
+                    EnemyController.takeDamage();
+                    scene.remove(thrownItem);
+                    return;
+                }
+            }
+
             // Check if item has traveled far enough
             if (Math.abs(thrownItem.position.z - throwStartZ) > throwDistance) {
                 scene.remove(thrownItem);
@@ -1615,12 +1626,52 @@ const EnemyController = {
     distanceFromPlayer: -15, // Behind player in chase mode
     isRunningAway: false, // When true, enemy runs away during throw
     runAwaySpeed: 20, // Speed when running away
+    health: 5,
+    maxHealth: 5,
 
     init() {
         this.currentLane = 1;
         this.targetLane = 1;
         this.laneChangeTimer = 0;
         this.isRunningAway = false;
+        this.health = this.maxHealth;
+    },
+
+    takeDamage() {
+        if (this.health > 0) {
+            this.health--;
+            console.log(`🎯 Enemy hit! Health: ${this.health}/${this.maxHealth}`);
+
+            // Update health bar
+            UI.updateEnemyHealthBar();
+
+            // Check if enemy is defeated
+            if (this.health <= 0) {
+                this.onDefeated();
+            }
+        }
+    },
+
+    onDefeated() {
+        console.log('🎉 Enemy defeated!');
+        GameState.isRunning = false;
+
+        // Show victory screen
+        setTimeout(() => {
+            this.showVictoryScreen();
+        }, 500);
+    },
+
+    showVictoryScreen() {
+        const overlay = UI.overlay;
+        overlay.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; text-align: center; background: rgba(0,0,0,0.9);">
+                <h1 style="font-size: 64px; color: #4fc3f7; margin-bottom: 30px;">VICTORY!</h1>
+                <p style="font-size: 28px; margin-bottom: 20px;">You caught the opponent!</p>
+                <p style="font-size: 24px; margin-bottom: 10px;">Score: ${GameState.score}</p>
+                <p style="font-size: 24px; color: #4fc3f7; margin-top: 60px; pointer-events: all; cursor: pointer;" onclick="resetGame()">CLICK TO PLAY AGAIN</p>
+            </div>
+        `;
     },
 
     update(dt) {
@@ -6371,6 +6422,16 @@ const UI = {
             const modeText = GameState.selectedLevel === 'shoot' ? '🎬 ANIMATION TESTING' :
                             GameState.currentMode === 'CHASE' ? 'CHASE MODE' : '!!! RUN AWAY !!!';
 
+            // Enemy health bar (only for chase mode)
+            const healthBar = GameState.selectedLevel === 'chase' ? `
+                <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 12px; min-width: 250px;">
+                    <div style="color: #ef5350; font-size: 14px; margin-bottom: 8px; text-align: center; font-weight: bold;">OPPONENT</div>
+                    <div style="width: 100%; height: 24px; background: rgba(255,255,255,0.2); border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.3);">
+                        <div id="enemy-health-bar" style="width: ${(EnemyController.health / EnemyController.maxHealth) * 100}%; height: 100%; background: linear-gradient(90deg, #ef5350, #e53935); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            ` : '';
+
             // Show controls hint
             const controlsHint = `
                 <div style="position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.6); color: #888; padding: 8px 12px; border-radius: 8px; font-size: 12px; pointer-events: none;">
@@ -6382,6 +6443,7 @@ const UI = {
                 <div style="display: none; position: absolute; top: 0; left: 0; width: 100%; padding: 10px; text-align: center; background: ${modeColor}; color: white; font-size: 24px; font-weight: bold;">
                     ${modeText}
                 </div>
+                ${healthBar}
                 ${controlsHint}
             `;
         } else if (GameState.screen === 'GAMEOVER') {
@@ -6395,6 +6457,14 @@ const UI = {
                     <p style="font-size: 24px; color: #4fc3f7; margin-top: 60px; pointer-events: all; cursor: pointer;" onclick="resetGame()">CLICK TO PLAY AGAIN</p>
                 </div>
             `;
+        }
+    },
+
+    updateEnemyHealthBar() {
+        const healthBar = document.getElementById('enemy-health-bar');
+        if (healthBar) {
+            const healthPercent = (EnemyController.health / EnemyController.maxHealth) * 100;
+            healthBar.style.width = healthPercent + '%';
         }
     }
 };
