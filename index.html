@@ -49,6 +49,7 @@
             }
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.1/dist/nipplejs.min.js"></script>
     <script>
         // Make libraries globally available for collision implementations
         import('https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.3/build/index.module.js')
@@ -59,6 +60,6 @@
             .then(module => { window.CANNON = module.default || module; console.log('✅ cannon-es loaded'); })
             .catch(() => console.warn('⚠️ cannon-es failed to load'));
     </script>
-    <script type="module" src="game.js?v=127"></script>
+    <script type="module" src="game.js?v=128"></script>
 </body>
 </html>

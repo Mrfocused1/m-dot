@@ -974,8 +974,9 @@ const GameState = {
     screen: 'START',
     isNewHighScore: false,
     gameSpeed: GAME_SPEED,
-    selectedLevel: null, // 'chase' or 'brawl'
-    stageCompleted: false // Track if player reached the end
+    selectedLevel: null, // 'chase', 'shoot', or 'shoot-horizontal'
+    stageCompleted: false, // Track if player reached the end
+    isHorizontalMode: false // True when playing Stage 2 Mobile (horizontal/landscape mode)
 };
 
 // ============================================================================
@@ -1020,6 +1021,11 @@ const Input = {
     },
 
     handleTouchStart(e) {
+        // Skip default touch handling in horizontal mode - HorizontalControls handles it
+        if (GameState.isHorizontalMode) {
+            return;
+        }
+
         e.preventDefault();
         e.stopPropagation();
         const touch = e.touches[0];
@@ -1031,6 +1037,11 @@ const Input = {
     },
 
     handleTouchMove(e) {
+        // Skip default touch handling in horizontal mode - HorizontalControls handles it
+        if (GameState.isHorizontalMode) {
+            return;
+        }
+
         // Prevent scrolling/zooming while touching the game canvas
         e.preventDefault();
         e.stopPropagation();
@@ -1139,6 +1150,11 @@ const Input = {
     },
 
     handleTouchEnd(e) {
+        // Skip default touch handling in horizontal mode - HorizontalControls handles it
+        if (GameState.isHorizontalMode) {
+            return;
+        }
+
         e.preventDefault();
         e.stopPropagation();
 
@@ -2949,6 +2965,289 @@ const MazeController = {
             paused: targetAction.paused,
             time: targetAction.time.toFixed(3)
         });
+    }
+};
+
+// ============================================================================
+// HORIZONTAL CONTROLS - Mobile joystick and buttons for Stage 2 Mobile
+// ============================================================================
+
+const HorizontalControls = {
+    joystick: null,
+    joystickContainer: null,
+    shootButton: null,
+    actionButton: null,
+    isActive: false,
+
+    init() {
+        if (this.isActive) {
+            console.log('[HorizontalControls] Already active, skipping init');
+            return;
+        }
+
+        console.log('[HorizontalControls] Initializing...');
+
+        // Check if nipplejs is available
+        if (typeof nipplejs === 'undefined') {
+            console.error('[HorizontalControls] nipplejs not loaded!');
+            return;
+        }
+
+        // Create joystick container
+        this.joystickContainer = document.createElement('div');
+        this.joystickContainer.id = 'joystick-zone';
+        this.joystickContainer.style.cssText = `
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            width: 150px;
+            height: 150px;
+            z-index: 1000;
+            pointer-events: all;
+        `;
+        document.body.appendChild(this.joystickContainer);
+
+        // Create joystick using nipplejs
+        this.joystick = nipplejs.create({
+            zone: this.joystickContainer,
+            mode: 'static',
+            position: { left: '75px', bottom: '75px' },
+            color: 'rgba(255, 255, 255, 0.5)',
+            size: 120,
+            threshold: 0.2,
+            fadeTime: 0
+        });
+
+        // Joystick event handlers
+        this.joystick.on('move', (evt, data) => {
+            this.handleJoystickMove(data);
+        });
+
+        this.joystick.on('end', () => {
+            this.handleJoystickEnd();
+        });
+
+        // Create shoot button (bottom right)
+        this.shootButton = document.createElement('div');
+        this.shootButton.id = 'shoot-button';
+        this.shootButton.innerHTML = '🔫';
+        this.shootButton.style.cssText = `
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            z-index: 1000;
+            pointer-events: all;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+        `;
+        document.body.appendChild(this.shootButton);
+
+        // Create action button (above shoot button)
+        this.actionButton = document.createElement('div');
+        this.actionButton.id = 'action-button';
+        this.actionButton.innerHTML = '⚡';
+        this.actionButton.style.cssText = `
+            position: fixed;
+            bottom: 120px;
+            right: 35px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            z-index: 1000;
+            pointer-events: all;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+        `;
+        document.body.appendChild(this.actionButton);
+
+        // Button event handlers with visual feedback
+        this.shootButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.shootButton.style.transform = 'scale(0.9)';
+            this.shootButton.style.boxShadow = '0 2px 8px rgba(255, 107, 53, 0.6)';
+            MazeController.shoot();
+        }, { passive: false });
+
+        this.shootButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.shootButton.style.transform = 'scale(1)';
+            this.shootButton.style.boxShadow = '0 4px 15px rgba(255, 107, 53, 0.4)';
+        }, { passive: false });
+
+        this.shootButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this.shootButton.style.transform = 'scale(0.9)';
+            MazeController.shoot();
+        });
+
+        this.shootButton.addEventListener('mouseup', () => {
+            this.shootButton.style.transform = 'scale(1)';
+        });
+
+        this.actionButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.actionButton.style.transform = 'scale(0.9)';
+            this.actionButton.style.boxShadow = '0 2px 8px rgba(33, 150, 243, 0.6)';
+            this.handleAction();
+        }, { passive: false });
+
+        this.actionButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.actionButton.style.transform = 'scale(1)';
+            this.actionButton.style.boxShadow = '0 4px 15px rgba(33, 150, 243, 0.4)';
+        }, { passive: false });
+
+        this.actionButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this.actionButton.style.transform = 'scale(0.9)';
+            this.handleAction();
+        });
+
+        this.actionButton.addEventListener('mouseup', () => {
+            this.actionButton.style.transform = 'scale(1)';
+        });
+
+        this.isActive = true;
+        console.log('[HorizontalControls] Initialized successfully');
+    },
+
+    handleJoystickMove(data) {
+        if (!data || !data.direction) return;
+
+        // Get angle in degrees (0 = right, 90 = up, 180 = left, 270 = down)
+        const angle = data.angle.degree;
+        const force = data.force;
+
+        // Only process if force is above threshold
+        if (force < 0.2) {
+            this.handleJoystickEnd();
+            return;
+        }
+
+        // Map angle to 8 directions and set MazeController.keysPressed
+        // nipplejs angles: 0/360 = right, 90 = up, 180 = left, 270 = down
+        // We need to map these to our movement system
+
+        // Reset all keys first
+        MazeController.keysPressed.up = false;
+        MazeController.keysPressed.down = false;
+        MazeController.keysPressed.left = false;
+        MazeController.keysPressed.right = false;
+
+        // 8 directions with 45 degree segments
+        // Right: 337.5 - 22.5
+        // Up-Right: 22.5 - 67.5
+        // Up: 67.5 - 112.5
+        // Up-Left: 112.5 - 157.5
+        // Left: 157.5 - 202.5
+        // Down-Left: 202.5 - 247.5
+        // Down: 247.5 - 292.5
+        // Down-Right: 292.5 - 337.5
+
+        if (angle >= 337.5 || angle < 22.5) {
+            // Right
+            MazeController.keysPressed.right = true;
+        } else if (angle >= 22.5 && angle < 67.5) {
+            // Up-Right
+            MazeController.keysPressed.up = true;
+            MazeController.keysPressed.right = true;
+        } else if (angle >= 67.5 && angle < 112.5) {
+            // Up
+            MazeController.keysPressed.up = true;
+        } else if (angle >= 112.5 && angle < 157.5) {
+            // Up-Left
+            MazeController.keysPressed.up = true;
+            MazeController.keysPressed.left = true;
+        } else if (angle >= 157.5 && angle < 202.5) {
+            // Left
+            MazeController.keysPressed.left = true;
+        } else if (angle >= 202.5 && angle < 247.5) {
+            // Down-Left
+            MazeController.keysPressed.down = true;
+            MazeController.keysPressed.left = true;
+        } else if (angle >= 247.5 && angle < 292.5) {
+            // Down
+            MazeController.keysPressed.down = true;
+        } else if (angle >= 292.5 && angle < 337.5) {
+            // Down-Right
+            MazeController.keysPressed.down = true;
+            MazeController.keysPressed.right = true;
+        }
+    },
+
+    handleJoystickEnd() {
+        // Clear all movement keys when joystick is released
+        MazeController.keysPressed.up = false;
+        MazeController.keysPressed.down = false;
+        MazeController.keysPressed.left = false;
+        MazeController.keysPressed.right = false;
+    },
+
+    handleAction() {
+        // Action button - can be used for sprint, interact, etc.
+        // For now, just log it
+        console.log('[HorizontalControls] Action button pressed');
+        // Future: could toggle sprint, interact with objects, etc.
+    },
+
+    destroy() {
+        console.log('[HorizontalControls] Destroying...');
+
+        // Destroy nipplejs joystick
+        if (this.joystick) {
+            this.joystick.destroy();
+            this.joystick = null;
+        }
+
+        // Remove joystick container
+        if (this.joystickContainer && this.joystickContainer.parentNode) {
+            this.joystickContainer.parentNode.removeChild(this.joystickContainer);
+            this.joystickContainer = null;
+        }
+
+        // Remove shoot button
+        if (this.shootButton && this.shootButton.parentNode) {
+            this.shootButton.parentNode.removeChild(this.shootButton);
+            this.shootButton = null;
+        }
+
+        // Remove action button
+        if (this.actionButton && this.actionButton.parentNode) {
+            this.actionButton.parentNode.removeChild(this.actionButton);
+            this.actionButton = null;
+        }
+
+        // Clear any held keys
+        MazeController.keysPressed.up = false;
+        MazeController.keysPressed.down = false;
+        MazeController.keysPressed.left = false;
+        MazeController.keysPressed.right = false;
+
+        this.isActive = false;
+        console.log('[HorizontalControls] Destroyed');
     }
 };
 
@@ -6411,6 +6710,29 @@ const UI = {
                                 <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
                             </div>
                         </div>
+
+                        <!-- Level 2 Mobile: Tunnel Scene with Touch Controls -->
+                        <div onclick="selectLevel('shoot-horizontal')" style="
+                            width: 250px;
+                            padding: 30px;
+                            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+                            border-radius: 15px;
+                            cursor: pointer;
+                            transition: transform 0.2s, box-shadow 0.2s;
+                            pointer-events: all;
+                            border: 3px solid transparent;
+                        " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 10px 30px rgba(76,175,80,0.5)'"
+                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
+                            <div style="font-size: 40px; margin-bottom: 15px;">📱</div>
+                            <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 2 Mobile</h3>
+                            <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Tunnel scene with touch joystick!</p>
+                            <div style="font-size: 11px; color: #ccc; margin-bottom: 15px; opacity: 0.8;">
+                                🕹️ Joystick + Buttons
+                            </div>
+                            <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
+                                <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
+                            </div>
+                        </div>
                     </div>
 
                     <p style="font-size: 14px; color: #888; margin-top: 40px;">Desktop & Mobile Compatible • Press H for help in-game</p>
@@ -6478,8 +6800,13 @@ function selectLevel(level) {
     console.log('Selected level:', level);
 
     if (level === 'chase') {
+        GameState.isHorizontalMode = false;
         startGame();
     } else if (level === 'shoot') {
+        GameState.isHorizontalMode = false;
+        startShootingGame();
+    } else if (level === 'shoot-horizontal') {
+        GameState.isHorizontalMode = true;
         startShootingGame();
     }
 }
@@ -6543,7 +6870,11 @@ function startGame() {
 }
 
 function startShootingGame() {
-    GameState.selectedLevel = 'shoot';
+    // Don't override selectedLevel - it's already set by selectLevel()
+    // Keep it as 'shoot' or 'shoot-horizontal' as selected
+    if (!GameState.selectedLevel || GameState.selectedLevel === 'chase') {
+        GameState.selectedLevel = 'shoot';
+    }
     GameState.screen = 'PLAYING';
     GameState.isRunning = true;
     GameState.score = 0;
@@ -6551,6 +6882,7 @@ function startShootingGame() {
     GameState.stageCompleted = false; // Reset stage completion
 
     console.log('Starting Animation Testing mode...');
+    console.log('Horizontal mode:', GameState.isHorizontalMode);
 
     // Show Stage 2 loading screen
     Stage2LoadingScreen.show();
@@ -6585,6 +6917,14 @@ function startShootingGame() {
     // Load officer character
     loadOfficerCharacter();
 
+    // Initialize horizontal controls if in horizontal mode
+    if (GameState.isHorizontalMode) {
+        // Delay initialization slightly to ensure DOM is ready
+        setTimeout(() => {
+            HorizontalControls.init();
+        }, 100);
+    }
+
     // Don't update UI yet - wait for Stage 2 loading to complete
     // UI.updateUI();
 
@@ -6609,6 +6949,12 @@ function gameOver() {
 }
 
 function resetGame() {
+    // Clean up horizontal controls if they were active
+    if (HorizontalControls.isActive) {
+        HorizontalControls.destroy();
+    }
+    GameState.isHorizontalMode = false;
+
     startGame();
 }
 
