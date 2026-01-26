@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sky Dome Test</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Sky Dome Test</h3>
+        <p>Status: <span id="status">Loading...</span></p>
+        <p>Sky Dome: <span id="dome-status">Not loaded</span></p>
+        <p>Use arrow keys to look around</p>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, skyDome, controls;
+
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+            console.log('STATUS:', text);
+        }
+
+        function updateDomeStatus(text) {
+            document.getElementById('dome-status').textContent = text;
+            console.log('DOME:', text);
+        }
+
+        function init() {
+            updateStatus('Initializing Three.js...');
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Sky blue fallback
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                2000 // Increased far plane
+            );
+            camera.position.set(0, 5, 10);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Orbit controls for testing
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(5, 10, 5);
+            scene.add(dirLight);
+
+            // Add a reference cube to show scale
+            const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(0, 1, 0);
+            scene.add(cube);
+
+            updateStatus('Loading sky dome...');
+            loadSkyDome();
+
+            // Resize handler
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            animate();
+        }
+
+        function loadSkyDome() {
+            const loader = new GLTFLoader();
+
+            console.log('🌤️ Loading sky dome from: sky_dome_demo.glb');
+
+            loader.load(
+                'sky_dome_demo.glb',
+                // Success
+                (gltf) => {
+                    console.log('✅ Sky dome loaded!', gltf);
+                    skyDome = gltf.scene;
+
+                    // Log info
+                    const box = new THREE.Box3().setFromObject(skyDome);
+                    const size = box.getSize(new THREE.Vector3());
+                    console.log('Original size:', size);
+
+                    // Scale HUGE
+                    const scale = 500;
+                    skyDome.scale.setScalar(scale);
+                    console.log('Scaled to:', scale);
+
+                    // Position at origin
+                    skyDome.position.set(0, 0, 0);
+
+                    // Configure materials
+                    let meshCount = 0;
+                    skyDome.traverse((child) => {
+                        if (child.isMesh) {
+                            meshCount++;
+                            console.log('Mesh:', child.name, 'Material:', child.material.type);
+
+                            // Clone material
+                            child.material = child.material.clone();
+
+                            // DOUBLE SIDED for visibility
+                            child.material.side = THREE.DoubleSide;
+
+                            // Ensure visible
+                            child.material.visible = true;
+                            child.material.transparent = false;
+                            child.material.opacity = 1.0;
+
+                            // Disable depth test
+                            child.material.depthTest = false;
+                            child.material.depthWrite = false;
+
+                            // Render first
+                            child.renderOrder = -999;
+
+                            child.receiveShadow = false;
+                            child.castShadow = false;
+                            child.visible = true;
+                        }
+                    });
+
+                    console.log('Total meshes:', meshCount);
+
+                    // Add to scene
+                    scene.add(skyDome);
+                    window.skyDome = skyDome;
+
+                    updateDomeStatus(`Loaded! ${meshCount} meshes, scale ${scale}`);
+                    updateStatus('Sky dome active - use mouse to look around');
+
+                    console.log('✅ Sky dome in scene:', scene.children.includes(skyDome));
+                    console.log('Position:', skyDome.position);
+                    console.log('Scale:', skyDome.scale.x);
+                    console.log('Visible:', skyDome.visible);
+                },
+                // Progress
+                (xhr) => {
+                    if (xhr.lengthComputable) {
+                        const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+                        updateDomeStatus(`Loading... ${percent}%`);
+                    }
+                },
+                // Error
+                (error) => {
+                    console.error('❌ Error loading sky dome:', error);
+                    updateDomeStatus('Failed to load!');
+                    updateStatus('Error - check console');
+                }
+            );
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotate sky dome slowly
+            if (skyDome) {
+                skyDome.rotation.y += 0.001;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>

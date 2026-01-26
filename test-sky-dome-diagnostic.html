@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sky Dome Diagnostic</title>
+    <style>
+        body { margin: 0; font-family: monospace; background: #000; color: #0f0; }
+        #log {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 50%;
+            height: 100%;
+            overflow-y: scroll;
+            padding: 10px;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            font-size: 12px;
+        }
+        #canvas-container {
+            position: absolute;
+            right: 0;
+            width: 50%;
+            height: 100%;
+        }
+        canvas { width: 100% !important; height: 100% !important; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .info { color: #ff0; }
+    </style>
+</head>
+<body>
+    <div id="log"></div>
+    <div id="canvas-container"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        const logEl = document.getElementById('log');
+
+        function log(msg, type = 'info') {
+            const line = document.createElement('div');
+            line.className = type;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logEl.appendChild(line);
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(msg);
+        }
+
+        log('=== SKY DOME DIAGNOSTIC START ===', 'info');
+        log('File: sky_dome_demo.glb', 'info');
+
+        let scene, camera, renderer, skyDome;
+
+        try {
+            log('Creating Three.js scene...', 'info');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000033);
+
+            log('Creating camera...', 'info');
+            camera = new THREE.PerspectiveCamera(75, 1, 0.1, 2000);
+            camera.position.set(0, 0, 5);
+
+            log('Creating renderer...', 'info');
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(800, 600);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            log('✓ Three.js initialized', 'success');
+
+            // Add test cube
+            const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+            const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+            const cube = new THREE.Mesh(cubeGeo, cubeMat);
+            scene.add(cube);
+            log('✓ Test cube added', 'success');
+
+            // Add lights
+            const ambient = new THREE.AmbientLight(0xffffff, 1);
+            scene.add(ambient);
+            log('✓ Lights added', 'success');
+
+            // Load sky dome
+            log('Creating GLTFLoader...', 'info');
+            const loader = new GLTFLoader();
+
+            log('Loading sky_dome_demo.glb...', 'info');
+            loader.load(
+                'sky_dome_demo.glb',
+                // Success
+                (gltf) => {
+                    log('✓ GLB file loaded successfully!', 'success');
+                    skyDome = gltf.scene;
+
+                    const box = new THREE.Box3().setFromObject(skyDome);
+                    const size = box.getSize(new THREE.Vector3());
+                    log(`Original size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`, 'info');
+
+                    const scale = 50; // Smaller scale for testing
+                    skyDome.scale.setScalar(scale);
+                    log(`Scaled to: ${scale}`, 'info');
+
+                    skyDome.position.set(0, 0, 0);
+
+                    let meshCount = 0;
+                    skyDome.traverse((child) => {
+                        if (child.isMesh) {
+                            meshCount++;
+                            log(`Mesh ${meshCount}: ${child.name || 'unnamed'}`, 'info');
+                            log(`  Material type: ${child.material.type}`, 'info');
+                            log(`  Has emissiveMap: ${!!child.material.emissiveMap}`, 'info');
+
+                            child.material = child.material.clone();
+                            child.material.side = THREE.DoubleSide;
+
+                            if (child.material.emissive) {
+                                log(`  Emissive color before: ${child.material.emissive.getHexString()}`, 'info');
+                                child.material.emissive.setHex(0xffffff);
+                                child.material.emissiveIntensity = 3.0;
+                                log(`  Emissive color after: ${child.material.emissive.getHexString()}`, 'success');
+                            }
+
+                            child.material.depthTest = true;
+                            child.material.depthWrite = false;
+                            child.renderOrder = -999;
+                            child.receiveShadow = false;
+                            child.castShadow = false;
+                            child.visible = true;
+                            child.material.needsUpdate = true;
+                        }
+                    });
+
+                    log(`Total meshes: ${meshCount}`, 'success');
+
+                    scene.add(skyDome);
+                    window.skyDome = skyDome;
+
+                    log('✓ Sky dome added to scene!', 'success');
+                    log(`Position: ${skyDome.position.x}, ${skyDome.position.y}, ${skyDome.position.z}`, 'info');
+                    log(`Scale: ${skyDome.scale.x}`, 'info');
+                    log(`Visible: ${skyDome.visible}`, 'info');
+                    log(`In scene: ${scene.children.includes(skyDome)}`, 'info');
+                    log(`Scene children count: ${scene.children.length}`, 'info');
+
+                    log('=== SKY DOME LOADED SUCCESSFULLY ===', 'success');
+                },
+                // Progress
+                (xhr) => {
+                    if (xhr.lengthComputable) {
+                        const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+                        log(`Loading: ${percent}% (${xhr.loaded}/${xhr.total} bytes)`, 'info');
+                    }
+                },
+                // Error
+                (error) => {
+                    log(`✗ ERROR loading sky dome: ${error.message}`, 'error');
+                    log(`Error type: ${error.constructor.name}`, 'error');
+                    log(JSON.stringify(error, null, 2), 'error');
+                }
+            );
+
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+
+                if (skyDome) {
+                    skyDome.rotation.y += 0.001;
+                }
+
+                camera.position.x = Math.sin(Date.now() * 0.0003) * 3;
+                camera.position.z = Math.cos(Date.now() * 0.0003) * 3;
+                camera.lookAt(0, 0, 0);
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+            log('✓ Animation loop started', 'success');
+
+        } catch (err) {
+            log(`✗ FATAL ERROR: ${err.message}`, 'error');
+            log(err.stack, 'error');
+        }
+    </script>
+</body>
+</html>

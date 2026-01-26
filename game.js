@@ -807,9 +807,9 @@ let debugCollisionBoxes = []; // Visual wireframes for debugging
 let skyDome = null;
 const SKY_DOME_CONFIG = {
     enabled: true,              // Enable/disable sky dome
-    rotationSpeed: 0.0005,      // Slow rotation (radians per frame)
-    scale: 100,                 // Size of dome (should encompass whole scene)
-    renderOrder: -1             // Render behind everything else
+    rotationSpeed: 0.001,       // Slow rotation (radians per frame) - increased for visibility
+    scale: 800,                 // Size of dome (HUGE - must be bigger than camera far plane distance)
+    renderOrder: -999           // Render first (behind everything else)
 };
 
 // Maze layout (1 = wall, 0 = corridor, 2 = exit)
@@ -3908,7 +3908,8 @@ const EnvironmentManager = {
         scene.add(directionalLight);
 
         // Light fog for depth (sky blue to match background)
-        scene.fog = new THREE.Fog(0x87CEEB, 50, 150); // Lighter and farther
+        // DISABLED: Fog hides the sky dome
+        // scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
     },
 
     loadRoadModel() {
@@ -4090,50 +4091,115 @@ const EnvironmentManager = {
             return;
         }
 
-        console.log('Loading sky dome...');
+        console.log('🌤️ Starting sky dome load...');
+        console.log('   File: sky_dome_demo.glb');
+        console.log('   Scale:', SKY_DOME_CONFIG.scale);
 
         const loader = new GLTFLoader();
         loader.load(
-            '/Users/paulbridges/Downloads/sky_dome_demo.glb',
+            'sky_dome_demo.glb',
             // onLoad
             (gltf) => {
+                console.log('✅ Sky dome GLB loaded successfully!');
                 skyDome = gltf.scene;
+
+                // Get dome info
+                const box = new THREE.Box3().setFromObject(skyDome);
+                const size = box.getSize(new THREE.Vector3());
+                console.log('   Original size:', size.x.toFixed(2), 'x', size.y.toFixed(2), 'x', size.z.toFixed(2));
 
                 // Scale the dome to encompass the entire scene
                 skyDome.scale.setScalar(SKY_DOME_CONFIG.scale);
+                console.log('   Scaled to:', SKY_DOME_CONFIG.scale);
 
                 // Position at origin
                 skyDome.position.set(0, 0, 0);
 
-                // Render behind everything else
+                // Count meshes
+                let meshCount = 0;
+
+                // Configure materials for visibility
                 skyDome.traverse((child) => {
                     if (child.isMesh) {
-                        child.renderOrder = SKY_DOME_CONFIG.renderOrder;
-                        // Make sure sky dome doesn't receive shadows
+                        meshCount++;
+
+                        // Clone material to avoid affecting original
+                        const originalMaterial = child.material;
+                        child.material = originalMaterial.clone();
+
+                        // CRITICAL: Use DoubleSide for maximum visibility
+                        child.material.side = THREE.DoubleSide;
+
+                        // Ensure material is visible
+                        child.material.visible = true;
+                        child.material.transparent = false;
+                        child.material.opacity = 1.0;
+
+                        // For emissive materials (self-glowing), boost emission
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0xffffff);
+                            child.material.emissiveIntensity = 2.0;
+                        }
+
+                        // Ensure emissive map is applied if it exists
+                        if (child.material.emissiveMap) {
+                            child.material.emissiveMap.needsUpdate = true;
+                        }
+
+                        // Enable depth test but disable depth write (render behind everything)
+                        child.material.depthTest = true;
+                        child.material.depthWrite = false;
+
+                        // Render first (behind everything)
+                        child.renderOrder = -999;
+
+                        // No shadows on sky
                         child.receiveShadow = false;
                         child.castShadow = false;
-                        // Double-sided rendering to see from inside
-                        child.material.side = THREE.BackSide; // Important: render inside of dome
+
+                        // Make sure mesh is visible
+                        child.visible = true;
+
+                        // Force material update
+                        child.material.needsUpdate = true;
+
+                        console.log('   Configured mesh:', child.name || 'unnamed');
+                        console.log('     Material:', child.material.type);
+                        console.log('     Emissive:', child.material.emissive ? child.material.emissive.getHexString() : 'none');
+                        console.log('     Has emissiveMap:', !!child.material.emissiveMap);
                     }
                 });
 
+                console.log('   Total meshes:', meshCount);
+
+                // Make sure sky dome itself is visible
+                skyDome.visible = true;
+
+                // Add to scene
                 scene.add(skyDome);
-                console.log('✅ Sky dome loaded and added to scene');
-                console.log('   Scale:', SKY_DOME_CONFIG.scale);
-                console.log('   Rotation speed:', SKY_DOME_CONFIG.rotationSpeed);
+
+                // Expose to window for debugging
+                window.skyDome = skyDome;
+
+                console.log('✅ Sky dome added to scene!');
+                console.log('   Position:', skyDome.position.x, skyDome.position.y, skyDome.position.z);
+                console.log('   Scale:', skyDome.scale.x);
+                console.log('   Visible:', skyDome.visible);
+                console.log('   In scene:', scene.children.includes(skyDome));
+                console.log('💡 Access via window.skyDome in console');
             },
             // onProgress
             (xhr) => {
                 if (xhr.lengthComputable) {
                     const percent = (xhr.loaded / xhr.total * 100).toFixed(2);
-                    console.log('Sky dome loading: ' + percent + '%');
+                    console.log('   Loading sky dome: ' + percent + '%');
                 }
             },
             // onError
             (error) => {
-                console.error('Error loading sky dome:', error);
-                console.log('Falling back to solid color background');
-                // Sky dome failed to load, keep the blue background
+                console.error('❌ Error loading sky dome:', error);
+                console.error('   Path: sky_dome_demo.glb');
+                console.log('   Falling back to solid color background');
             }
         );
     }
@@ -7380,6 +7446,11 @@ function animate() {
     // Rotate sky dome for motion illusion (only in Level 1)
     if (skyDome && SKY_DOME_CONFIG.enabled && GameState.selectedLevel === 'chase') {
         skyDome.rotation.y += SKY_DOME_CONFIG.rotationSpeed;
+
+        // Make sky dome follow camera (stay centered on player)
+        skyDome.position.x = camera.position.x;
+        skyDome.position.y = camera.position.y;
+        skyDome.position.z = camera.position.z;
     }
 
     // Update hazard lights flashing
@@ -7626,7 +7697,7 @@ function init() {
         75,
         window.innerWidth / window.innerHeight,
         0.1,
-        1000
+        5000  // Increased far plane to see sky dome
     );
     camera.position.set(0, 6, 8);
     camera.lookAt(0, 0, 0);
