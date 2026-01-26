@@ -2142,10 +2142,25 @@ const PlayerController = {
                 // CRITICAL FIX: Reset enemy model transform to prevent lopsided running
                 // Death animation may have altered rotation/position/scale - restore to initial state
                 if (enemyModel) {
+                    // Reset root model transform
                     enemyModel.rotation.y = Math.PI; // Face away from player (180 degrees)
                     enemyModel.position.set(0, 1.0, -15); // Reset to starting position (center lane, X=0)
                     enemyModel.scale.set(0.01, 0.01, 0.01); // Reset to correct scale
-                    console.log('🔄 Enemy model transform reset (rotation, position, scale)');
+
+                    // CRITICAL FIX: Reset ALL bone transforms to bind pose
+                    // Death animation affects skeleton bones, causing lopsided/tilted body
+                    enemyModel.traverse((child) => {
+                        if (child.isBone) {
+                            // Reset bone rotation to identity (no rotation)
+                            child.quaternion.set(0, 0, 0, 1);
+                            // Reset bone position to origin (relative to parent)
+                            child.position.set(0, 0, 0);
+                            // Keep scale at 1
+                            child.scale.set(1, 1, 1);
+                        }
+                    });
+
+                    console.log('🔄 Enemy model transform reset (rotation, position, scale, bones)');
                 }
 
                 // CRITICAL FIX: Reset enemy lane to center lane (lane 1)
