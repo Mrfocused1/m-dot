@@ -2516,28 +2516,16 @@ class Obstacle {
     activate(lane, zPosition, useRandomModel = true) {
         // ONLY assign a model if this obstacle doesn't have one yet (first time use)
         if (useRandomModel && obstacleModels.length > 0 && this.type === null) {
-            const randomIndex = Math.floor(Math.random() * obstacleModels.length);
-            const randomModel = obstacleModels[randomIndex];
-
-            // Determine type based on which model it is
-            let obstacleType = 'unknown';
-            if (randomModel === barrierModelTemplate) obstacleType = 'barrier';
-            else if (randomModel === roadRollerTemplate) obstacleType = 'roller';
-            else if (randomModel === roadGraderTemplate) obstacleType = 'grader';
-
-            this.replaceWithModel(randomModel, obstacleType);
+            // Only one model now - concrete barrier
+            const randomModel = barrierModelTemplate;
+            this.replaceWithModel(randomModel, 'barrier');
         }
 
         this.lane = lane;
         this.mesh.position.x = LANE_POSITIONS[lane];
-        this.mesh.position.y = obstacleModels.length > 0 ? 0 : 1; // 3D models sit on ground, boxes hover
+        this.mesh.position.y = 0; // All models sit on ground
         this.mesh.position.z = zPosition;
         this.active = true;
-
-        // Reset horizontal direction for vehicles each time they spawn
-        if (this.canMoveHorizontally) {
-            this.horizontalDirection = Math.random() < 0.5 ? -1 : 1;
-        }
 
         scene.add(this.mesh);
     }
