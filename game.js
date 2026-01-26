@@ -2457,7 +2457,9 @@ class Obstacle {
         this.active = false;
         this.lane = 0;
         this.type = null; // 'barrier', 'roller', 'grader'
-        this.isMoving = true; // Whether obstacle moves toward player
+        this.canMoveHorizontally = false; // Whether obstacle can move left/right
+        this.horizontalDirection = 0; // -1 for left, 1 for right, 0 for none
+        this.horizontalSpeed = 2; // Speed of horizontal movement
     }
 
     // Replace placeholder mesh with 3D model
@@ -2478,8 +2480,16 @@ class Obstacle {
         this.type = obstacleType;
 
         // Set movement based on type
-        // Barriers are stationary, vehicles move
-        this.isMoving = (obstacleType !== 'barrier');
+        // Barriers: no horizontal movement
+        // Vehicles: can move horizontally
+        this.canMoveHorizontally = (obstacleType === 'roller' || obstacleType === 'grader');
+
+        // Randomly choose horizontal direction for vehicles
+        if (this.canMoveHorizontally) {
+            this.horizontalDirection = Math.random() < 0.5 ? -1 : 1; // Random left or right
+        } else {
+            this.horizontalDirection = 0; // No horizontal movement for barriers
+        }
 
         // Rotate horizontally (90 degrees on Y axis)
         this.mesh.rotation.y = Math.PI / 2;
@@ -2532,19 +2542,29 @@ class Obstacle {
     }
 
     update(dt) {
-        if (this.active && this.isMoving) {
-            // Only moving obstacles (vehicles) move toward player
+        if (this.active) {
+            // ALL obstacles move toward player (Z-axis) - like the road scrolling
             this.mesh.position.z += GameState.gameSpeed * dt;
+
+            // Vehicles ALSO move horizontally (X-axis) - left/right across lanes
+            if (this.canMoveHorizontally) {
+                this.mesh.position.x += this.horizontalDirection * this.horizontalSpeed * dt;
+
+                // Bounce off the edges (reverse direction when hitting road boundaries)
+                const roadLeftEdge = LANE_POSITIONS[0] - 2; // Left boundary
+                const roadRightEdge = LANE_POSITIONS[2] + 2; // Right boundary
+
+                if (this.mesh.position.x <= roadLeftEdge) {
+                    this.horizontalDirection = 1; // Move right
+                    this.mesh.position.x = roadLeftEdge;
+                } else if (this.mesh.position.x >= roadRightEdge) {
+                    this.horizontalDirection = -1; // Move left
+                    this.mesh.position.x = roadRightEdge;
+                }
+            }
 
             // Remove if behind camera
             if (this.mesh.position.z > 10) {
-                this.deactivate();
-            }
-        }
-        // Stationary obstacles (barriers) don't move, but check if player passed them
-        else if (this.active && !this.isMoving) {
-            // Remove barrier if player is far past it
-            if (playerModel && this.mesh.position.z > playerModel.position.z + 15) {
                 this.deactivate();
             }
         }
@@ -2643,9 +2663,9 @@ const ObstacleManager = {
                 obstacleModels.push(roadGraderTemplate);
                 console.log('✅ Road grader loaded (' + obstacleModels.length + '/3)');
                 console.log('🎮 All obstacle models ready! Game will randomly spawn:', obstacleModels.length, 'types');
-                console.log('  • Concrete barriers (grey) - STATIONARY, horizontal');
-                console.log('  • Road rollers (yellow) - MOVING, horizontal');
-                console.log('  • Road graders (yellow) - MOVING, horizontal');
+                console.log('  • Concrete barriers (grey) - Scroll toward player only');
+                console.log('  • Road rollers (yellow) - Scroll + move horizontally');
+                console.log('  • Road graders (yellow) - Scroll + move horizontally');
             },
             (xhr) => {
                 if (xhr.lengthComputable) {
