@@ -2580,24 +2580,33 @@ const EnvironmentManager = {
         const loader = sharedGLTFLoader;
 
         loader.load(
-            'road-street.glb',
+            'road_hd.glb',
             // onLoad
             (gltf) => {
                 roadModelTemplate = gltf.scene;
 
-                console.log('Road model loaded successfully');
+                console.log('Road HD model loaded successfully');
 
                 // Calculate bounding box to understand size
                 const box = new THREE.Box3().setFromObject(roadModelTemplate);
                 const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
                 console.log('Road model size:', {
                     x: size.x.toFixed(2),
                     y: size.y.toFixed(2),
                     z: size.z.toFixed(2)
                 });
+                console.log('Road model center:', {
+                    x: center.x.toFixed(2),
+                    y: center.y.toFixed(2),
+                    z: center.z.toFixed(2)
+                });
 
                 // Create multiple road segments
                 this.createRoadSegments();
+
+                // Create collision walls on both sides of the road
+                this.createRoadColliders(roadModelTemplate);
             },
             // onProgress
             (xhr) => {
@@ -2644,6 +2653,65 @@ const EnvironmentManager = {
         for (let i = 0; i < 3; i++) {
             roadSegments.push(new RoadSegment(-20 * i));
         }
+    },
+
+    createRoadColliders(roadModel) {
+        console.log('=== CREATING ROAD COLLISION WALLS ===');
+
+        // Get bounding box for road dimensions
+        const box = new THREE.Box3().setFromObject(roadModel);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+
+        console.log('Road bounds:', {
+            center: { x: center.x.toFixed(2), y: center.y.toFixed(2), z: center.z.toFixed(2) },
+            size: { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) }
+        });
+
+        const wallThickness = 2;      // Thin walls
+        const wallHeight = 10;        // Tall walls
+        const roadLength = 100;       // Extended length for looping road
+
+        // Position walls based on the road's visual edges
+        // Lane system: LANE_POSITIONS = [-3, 0, 3] with LANE_WIDTH = 3
+        // We want walls outside the playable lanes
+        const roadHalfWidth = size.x / 2;
+
+        // Place walls at the visual edges of the road
+        const leftWallX = center.x - roadHalfWidth;    // Left edge
+        const rightWallX = center.x + roadHalfWidth;   // Right edge
+
+        console.log('Lane system: 3 lanes at X positions [-3, 0, 3]');
+        console.log('Wall positions:');
+        console.log('  Left wall X:', leftWallX.toFixed(2));
+        console.log('  Right wall X:', rightWallX.toFixed(2));
+        console.log('  Road visual width:', size.x.toFixed(2));
+        console.log('  Playable area: X=-3 to X=+3 (6 units)');
+
+        // Left wall - runs along the entire road length
+        addCollider(
+            leftWallX,             // X position (left edge)
+            0,                     // Z position (center, will extend forward and back)
+            wallThickness,         // Width of wall
+            roadLength,            // Depth (extends along road)
+            wallHeight,            // Height
+            'Road Left Wall'
+        );
+
+        // Right wall - runs along the entire road length
+        addCollider(
+            rightWallX,            // X position (right edge)
+            0,                     // Z position (center, will extend forward and back)
+            wallThickness,         // Width of wall
+            roadLength,            // Depth (extends along road)
+            wallHeight,            // Height
+            'Road Right Wall'
+        );
+
+        console.log('✅ Road collision walls created - player confined to road');
+
+        // Hide collision boxes by default
+        toggleCollisionDebug(false);
     },
 
     update(dt) {
@@ -4436,6 +4504,16 @@ function toggleCollisionDebug(show) {
 let _collisionDebugEnabled = false;
 window.enableCollisionDebug = () => { _collisionDebugEnabled = true; console.log('Collision debugging ENABLED'); };
 window.disableCollisionDebug = () => { _collisionDebugEnabled = false; console.log('Collision debugging DISABLED'); };
+
+// Show/hide collision wall wireframes
+window.showCollisionWalls = () => {
+    toggleCollisionDebug(true);
+    console.log('✅ Collision walls VISIBLE (red wireframes)');
+};
+window.hideCollisionWalls = () => {
+    toggleCollisionDebug(false);
+    console.log('✅ Collision walls HIDDEN');
+};
 
 function checkEnvironmentCollision(newX, newZ, radius = 0.5) {
     for (const collider of environmentColliders) {
