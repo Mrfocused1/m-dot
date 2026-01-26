@@ -2719,7 +2719,7 @@ const ObstacleManager = {
 const roadSegments = [];
 let roadModels = []; // Array to hold 3D road model instances
 let roadModelTemplate = null; // Loaded GLB template to clone
-let laneMarkers = []; // Array to hold lane marker objects
+let roadSegmentLength = 20; // Will be calculated from road model bounding box
 
 class RoadSegment {
     constructor(zPosition) {
@@ -2764,9 +2764,6 @@ class RoadSegment {
 }
 
 const EnvironmentManager = {
-    laneMarkerTimer: 0,
-    laneMarkerInterval: 1.5, // Spawn a marker every 1.5 seconds
-
     init() {
         // Load 3D road model first
         this.loadRoadModel();
@@ -2789,32 +2786,6 @@ const EnvironmentManager = {
 
         // Light fog for depth (sky blue to match background)
         scene.fog = new THREE.Fog(0x87CEEB, 50, 150); // Lighter and farther
-
-        // Create initial lane markers
-        this.createInitialLaneMarkers();
-    },
-
-    createInitialLaneMarkers() {
-        // Create several markers along the road to start
-        for (let i = 0; i < 15; i++) {
-            this.spawnLaneMarker(-50 - (i * 5)); // Spawn markers every 5 units back
-        }
-    },
-
-    spawnLaneMarker(zPosition) {
-        // Create left lane marker (between lane 0 and 1)
-        const leftMarkerGeometry = new THREE.BoxGeometry(0.3, 0.1, 2);
-        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const leftMarker = new THREE.Mesh(leftMarkerGeometry, markerMaterial);
-        leftMarker.position.set(-LANE_WIDTH / 2, 0.1, zPosition);
-        scene.add(leftMarker);
-
-        // Create right lane marker (between lane 1 and 2)
-        const rightMarker = new THREE.Mesh(leftMarkerGeometry, markerMaterial);
-        rightMarker.position.set(LANE_WIDTH / 2, 0.1, zPosition);
-        scene.add(rightMarker);
-
-        laneMarkers.push({ left: leftMarker, right: rightMarker });
     },
 
     loadRoadModel() {
@@ -2834,18 +2805,23 @@ const EnvironmentManager = {
                 const box = new THREE.Box3().setFromObject(roadModelTemplate);
                 const size = box.getSize(new THREE.Vector3());
                 const center = box.getCenter(new THREE.Vector3());
+
+                // Store the road segment length (Z-axis dimension)
+                roadSegmentLength = size.z;
+
                 console.log('Road model size:', {
                     x: size.x.toFixed(2),
                     y: size.y.toFixed(2),
                     z: size.z.toFixed(2)
                 });
+                console.log('Road segment length (Z):', roadSegmentLength.toFixed(2));
                 console.log('Road model center:', {
                     x: center.x.toFixed(2),
                     y: center.y.toFixed(2),
                     z: center.z.toFixed(2)
                 });
 
-                // Create multiple road segments
+                // Create multiple road segments for seamless looping
                 this.createRoadSegments();
 
                 // Create collision walls on both sides of the road
@@ -2868,12 +2844,21 @@ const EnvironmentManager = {
     },
 
     createRoadSegments() {
-        // Create 3 repeating road segments
-        for (let i = 0; i < 3; i++) {
+        // Calculate number of segments needed for seamless looping
+        // View distance is ~60 units, add 2 extra segments for buffer
+        const viewDistance = 60;
+        const numSegments = Math.ceil(viewDistance / roadSegmentLength) + 2;
+
+        console.log('Creating road segments:');
+        console.log('  Segment length:', roadSegmentLength.toFixed(2));
+        console.log('  View distance:', viewDistance);
+        console.log('  Number of segments:', numSegments);
+
+        for (let i = 0; i < numSegments; i++) {
             const roadClone = roadModelTemplate.clone();
 
-            // Position road segments in sequence
-            roadClone.position.set(0, 0, -20 * i);
+            // Position segments using actual segment length
+            roadClone.position.set(0, 0, -roadSegmentLength * i);
 
             // Enable shadows
             roadClone.traverse((child) => {
@@ -2887,7 +2872,7 @@ const EnvironmentManager = {
             roadModels.push(roadClone);
         }
 
-        console.log('Created', roadModels.length, 'road segments');
+        console.log('✅ Created', roadModels.length, 'road segments for seamless looping');
     },
 
     createFallbackRoad() {
@@ -2958,40 +2943,18 @@ const EnvironmentManager = {
     },
 
     update(dt) {
-        // Update 3D road models
+        // Update 3D road models with seamless looping
+        const loopDistance = roadSegmentLength * roadModels.length;
+
         roadModels.forEach(roadModel => {
+            // Move road toward camera (player running forward)
             roadModel.position.z += GameState.gameSpeed * dt;
 
-            // Loop back when road goes too far
-            if (roadModel.position.z > 20) {
-                roadModel.position.z -= 60;
+            // Seamless loop: when segment passes camera, move it to the back
+            if (roadModel.position.z > roadSegmentLength) {
+                roadModel.position.z -= loopDistance;
             }
         });
-
-        // Update lane markers
-        this.laneMarkerTimer += dt;
-
-        // Spawn new markers periodically
-        if (this.laneMarkerTimer >= this.laneMarkerInterval) {
-            this.laneMarkerTimer = 0;
-            this.spawnLaneMarker(-50); // Spawn far behind
-        }
-
-        // Move all markers forward and remove old ones
-        for (let i = laneMarkers.length - 1; i >= 0; i--) {
-            const marker = laneMarkers[i];
-
-            // Move both left and right markers
-            marker.left.position.z += GameState.gameSpeed * dt;
-            marker.right.position.z += GameState.gameSpeed * dt;
-
-            // Remove markers that passed the camera
-            if (marker.left.position.z > 10) {
-                scene.remove(marker.left);
-                scene.remove(marker.right);
-                laneMarkers.splice(i, 1);
-            }
-        }
 
         // Update fallback road segments if they exist
         roadSegments.forEach(segment => segment.update(dt));
@@ -5920,13 +5883,6 @@ function startShootingGame() {
         scene.remove(roadModel);
     });
     roadModels.length = 0;
-
-    // Clear lane markers
-    laneMarkers.forEach(marker => {
-        scene.remove(marker.left);
-        scene.remove(marker.right);
-    });
-    laneMarkers.length = 0;
 
     // Build the testing ground
     buildTestingGround();
