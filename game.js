@@ -1256,6 +1256,7 @@ const PlayerController = {
     hasItem: false,
     isThrowing: false,
     savedGameSpeed: 0,
+    throwTimeout: null,
 
     init() {
         this.currentLane = 1;
@@ -1269,6 +1270,11 @@ const PlayerController = {
         this.hasItem = false;
         this.isThrowing = false;
         this.savedGameSpeed = 0;
+        // Clear any existing throw timeout
+        if (this.throwTimeout) {
+            clearTimeout(this.throwTimeout);
+            this.throwTimeout = null;
+        }
     },
 
     update(dt) {
@@ -1387,6 +1393,8 @@ const PlayerController = {
         }
 
         // Play pickup animation
+        // IMPORTANT: stop() before reset() ensures the 'finished' event can fire again
+        playerAnimations.pickup.stop();
         playerAnimations.pickup.reset();
         playerAnimations.pickup.fadeIn(0.1);
         playerAnimations.pickup.play();
@@ -1398,8 +1406,14 @@ const PlayerController = {
         this.isPickingUp = false;
         this.hasItem = true;
 
+        // Stop the pickup animation to ensure clean state for next time
+        if (playerAnimations.pickup) {
+            playerAnimations.pickup.stop();
+        }
+
         // Switch to holding run animation
         this.switchToHoldingRunAnimation();
+        console.log('✨ Pickup cleanup complete. States: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp);
     },
 
     startThrow() {
@@ -1407,6 +1421,12 @@ const PlayerController = {
 
         console.log('🎯 Throw started!');
         this.isThrowing = true;
+
+        // Clear any existing throw timeout
+        if (this.throwTimeout) {
+            clearTimeout(this.throwTimeout);
+            this.throwTimeout = null;
+        }
 
         // Stop player movement during throw
         this.savedGameSpeed = GameState.gameSpeed;
@@ -1428,6 +1448,8 @@ const PlayerController = {
         }
 
         // Play throw animation
+        // IMPORTANT: stop() before reset() ensures the 'finished' event can fire again
+        playerAnimations.throw.stop();
         playerAnimations.throw.reset();
         playerAnimations.throw.fadeIn(0.1);
         playerAnimations.throw.play();
@@ -1435,10 +1457,37 @@ const PlayerController = {
 
         // Create and throw the projectile
         this.createThrownItem();
+
+        // Fallback timeout: ensure finishThrow is called even if animation event doesn't fire
+        // Get clip duration, default to 1 second if not available
+        const clipDuration = playerAnimations.throw.getClip().duration || 1.0;
+        const timeoutMs = (clipDuration + 0.5) * 1000; // Add 500ms buffer
+        console.log(`🎯 Setting throw timeout fallback: ${timeoutMs}ms (clip duration: ${clipDuration}s)`);
+
+        this.throwTimeout = setTimeout(() => {
+            if (this.isThrowing) {
+                console.log('🎯 Throw timeout fallback triggered - forcing finishThrow()');
+                this.finishThrow();
+            }
+        }, timeoutMs);
     },
 
     finishThrow() {
-        console.log('🎯 Throw finished!');
+        // Prevent multiple calls (from both animation event and timeout)
+        if (!this.isThrowing) {
+            console.log('🎯 finishThrow called but not throwing - ignoring');
+            return;
+        }
+
+        console.log('🎯 Throw finished! Resetting states...');
+
+        // Clear the timeout if it exists
+        if (this.throwTimeout) {
+            clearTimeout(this.throwTimeout);
+            this.throwTimeout = null;
+        }
+
+        // Reset all throw-related states
         this.isThrowing = false;
         this.hasItem = false;
 
@@ -1448,8 +1497,15 @@ const PlayerController = {
         // Stop enemy from running away
         EnemyController.isRunningAway = false;
 
+        // Stop the throw animation to ensure clean state for next time
+        if (playerAnimations.throw) {
+            playerAnimations.throw.stop();
+        }
+
         // Return to normal run animation
         this.switchToRunAnimation();
+
+        console.log('🎯 Throw cleanup complete. States: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp);
     },
 
     createThrownItem() {
