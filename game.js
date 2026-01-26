@@ -6768,6 +6768,15 @@ function init() {
     // loadPlayerCharacter(); // Disabled - only showing officer character
     // loadEnemyCharacter(); // Disabled - only showing officer character
 
+    // Complete initial loading screen immediately since we use stage-specific loaders
+    // The initial loadingManager has nothing to load anymore
+    setTimeout(() => {
+        LoadingScreen.complete();
+        if (GameState.screen === 'START') {
+            UI.updateUI();
+        }
+    }, 500);
+
     // Handle window resize
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
