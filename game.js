@@ -4161,7 +4161,7 @@ function createFallbackPlayer() {
 function loadEnemyCharacter() {
     const loader = stage1FBXLoader;
 
-    loader.load('Fast Run.fbx', (fbx) => {
+    loader.load('Fast Run-3.fbx', (fbx) => {
         enemyModel = fbx;
         enemyModel.scale.set(0.01, 0.01, 0.01);
         enemyModel.position.set(0, 1.0, -15); // Lifted up by 1 unit so feet are on ground
