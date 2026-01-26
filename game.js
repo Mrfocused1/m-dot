@@ -1405,9 +1405,13 @@ const PlayerController = {
     },
 
     update(dt) {
-        // Auto-jump when approaching a barrier - DISABLED for Level 1 (chase mode)
-        // In chase mode, obstacles don't affect the player (visual only)
-        if (!this.isJumping && playerModel && GameState.selectedLevel !== 'chase') {
+        // Auto-jump when approaching a barrier
+        // In chase mode: obstacles are safe UNTIL player throws for the first time
+        // After first throw, auto-jump is enabled to avoid obstacles
+        const shouldCheckAutoJump = (GameState.selectedLevel !== 'chase') ||
+                                    (GameState.selectedLevel === 'chase' && this.hasThrown);
+
+        if (!this.isJumping && playerModel && shouldCheckAutoJump) {
             this.checkAutoJump();
         }
 
@@ -1470,10 +1474,12 @@ const PlayerController = {
             if (!obstacle.active) continue;
 
             const sameColumn = obstacle.lane === this.targetLane;
+            // Negative distance = obstacle is ahead
             const distance = obstacle.mesh.position.z - playerModel.position.z;
 
-            // If barrier is ahead and within jump trigger distance (3-5 units)
-            if (sameColumn && distance > -3 && distance < -1.5) {
+            // Trigger jump when obstacle is 2-4 units ahead (gives player time to clear it)
+            if (sameColumn && distance < -2.0 && distance > -4.0) {
+                console.log(`🦘 Auto-jump triggered! Obstacle ${distance.toFixed(2)} units ahead`);
                 this.startJump();
                 break;
             }
