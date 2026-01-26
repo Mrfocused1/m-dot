@@ -4691,6 +4691,20 @@ function checkStage1AssetsLoaded() {
         GameState.isRunning = true;
         UI.updateUI();
 
+        // Expose game objects to window for testing/debugging
+        // Use getters for variables that change at runtime
+        Object.defineProperty(window, 'playerModel', { get: () => playerModel });
+        Object.defineProperty(window, 'enemyModel', { get: () => enemyModel });
+        Object.defineProperty(window, 'colaCanTemplate', { get: () => colaCanTemplate });
+        Object.defineProperty(window, 'heldCanModel', { get: () => heldCanModel });
+        window.PlayerController = PlayerController;
+        window.pickups = pickups;
+        window.obstacles = obstacles;
+        window.GameState = GameState;
+        Object.defineProperty(window, 'camera', { get: () => camera });
+        Object.defineProperty(window, 'scene', { get: () => scene });
+        console.log('🔧 Game objects exposed to window for testing (with getters for dynamic values)');
+
         // If in preload mode, notify parent window
         const urlParams = new URLSearchParams(window.location.search);
         const isPreloading = urlParams.get('preload') === 'true';
