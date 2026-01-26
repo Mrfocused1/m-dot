@@ -6809,15 +6809,16 @@ function checkCollisions() {
 }
 
 function handlePlayerHit() {
-    GameState.lives--;
+    // GameState.lives--; // DISABLED - Unlimited lives for testing
     PlayerController.isInvincible = true;
     PlayerController.invincibilityTimer = 2;
 
-    console.log(`Hit! Lives: ${GameState.lives}`);
+    console.log(`Hit! Lives: ${GameState.lives} (unlimited)`);
 
-    if (GameState.lives <= 0) {
-        gameOver();
-    }
+    // Game over disabled with unlimited lives
+    // if (GameState.lives <= 0) {
+    //     gameOver();
+    // }
 }
 
 // ============================================================================
