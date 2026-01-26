@@ -782,12 +782,12 @@ stage2LoadingManager.onLoad = () => {
 
     // Complete Stage 2 loading screen
     setTimeout(() => {
-        Stage2LoadingScreen.complete();
-
-        // Update UI now that Stage 2 is ready
-        if (GameState.selectedLevel === 'shoot') {
+        // Update UI BEFORE fading out loading screen so playing screen is ready underneath
+        if (GameState.selectedLevel === 'shoot' || GameState.selectedLevel === 'shoot-horizontal') {
             UI.updateUI();
         }
+
+        Stage2LoadingScreen.complete();
     }, 800); // Increased delay to allow warmup to complete
 };
 const stage2GLTFLoader = new GLTFLoader(stage2LoadingManager);
