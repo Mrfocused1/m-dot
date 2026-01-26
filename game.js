@@ -1356,7 +1356,11 @@ const PlayerController = {
         }
 
         // Play jump animation
+        // CRITICAL: stop() and enabled=true are required for LoopOnce animations
+        // Without these, the 'finished' event won't fire on subsequent plays
+        playerAnimations.jump.stop();
         playerAnimations.jump.reset();
+        playerAnimations.jump.enabled = true;
         playerAnimations.jump.fadeIn(0.1);
         playerAnimations.jump.play();
         currentPlayerAnimation = 'jump';
@@ -1394,8 +1398,10 @@ const PlayerController = {
 
         // Play pickup animation
         // IMPORTANT: stop() before reset() ensures the 'finished' event can fire again
+        // CRITICAL: enabled = true is required for LoopOnce animations with clampWhenFinished
         playerAnimations.pickup.stop();
         playerAnimations.pickup.reset();
+        playerAnimations.pickup.enabled = true;
         playerAnimations.pickup.fadeIn(0.1);
         playerAnimations.pickup.play();
         currentPlayerAnimation = 'pickup';
@@ -1449,8 +1455,11 @@ const PlayerController = {
 
         // Play throw animation
         // IMPORTANT: stop() before reset() ensures the 'finished' event can fire again
+        // CRITICAL: enabled = true is required for LoopOnce animations with clampWhenFinished
+        // After the first play, Three.js sets enabled=false, preventing subsequent 'finished' events
         playerAnimations.throw.stop();
         playerAnimations.throw.reset();
+        playerAnimations.throw.enabled = true;
         playerAnimations.throw.fadeIn(0.1);
         playerAnimations.throw.play();
         currentPlayerAnimation = 'throw';
