@@ -1467,9 +1467,9 @@ const PlayerController = {
         // Get animation duration
         const clipDuration = playerAnimations.throw.getClip().duration || 1.0;
 
-        // Delay the projectile spawn until near the end of the throw animation (80% through)
-        const itemSpawnDelay = clipDuration * 0.8 * 1000; // Convert to milliseconds
-        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (80% of ${clipDuration}s animation)`);
+        // Delay the projectile spawn until 60% through the throw animation
+        const itemSpawnDelay = clipDuration * 0.6 * 1000; // Convert to milliseconds
+        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (60% of ${clipDuration}s animation)`);
 
         setTimeout(() => {
             if (this.isThrowing) {
