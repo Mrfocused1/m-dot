@@ -2023,7 +2023,7 @@ const EnemyController = {
         this.isJumping = false;
     },
 
-    // RALPH FIX: Check if there's an obstacle ahead in current lane
+    // RALPH FIX: Check if there's an obstacle approaching from behind
     checkObstacleAhead() {
         if (!enemyModel) return null;
 
@@ -2032,10 +2032,12 @@ const EnemyController = {
             if (!obstacle.active) continue;
 
             const sameColumn = obstacle.lane === this.currentLane;
-            const distance = obstacle.mesh.position.z - enemyModel.position.z;
+            // FIX: Obstacles approach from behind (lower z), so check distance from enemy to obstacle
+            const distance = enemyModel.position.z - obstacle.mesh.position.z;
 
-            // Check if obstacle is ahead and within jump range
+            // Check if obstacle is behind and approaching (within jump range of 0-6 units)
             if (distance > 0 && distance < 6 && sameColumn) {
+                console.log(`🚧 Obstacle detected! Lane ${obstacle.lane}, distance: ${distance.toFixed(2)}`);
                 return obstacle;
             }
         }
@@ -2044,37 +2046,38 @@ const EnemyController = {
 
     // RALPH FIX: Jump over obstacle
     startJump() {
-        if (this.isJumping || !enemyModel) return;
+        if (this.isJumping || !enemyModel || !enemyAnimations.jump) return;
 
         console.log('🦘 Enemy jumping over obstacle!');
         this.isJumping = true;
         this.jumpStartY = enemyModel.position.y;
+
+        // Stop current animations and play jump
+        if (enemyAnimations.run) enemyAnimations.run.stop();
+        if (enemyAnimations.lookBehind) enemyAnimations.lookBehind.stop();
+
+        enemyAnimations.jump.reset();
+        enemyAnimations.jump.play();
+        console.log('🦘 Playing jump animation');
+
+        // Animation will handle the movement, but we track when it ends
+        const jumpDuration = enemyAnimations.jump.getClip().duration;
+
+        // Return to run animation after jump completes
+        setTimeout(() => {
+            this.isJumping = false;
+            if (enemyAnimations.run) {
+                enemyAnimations.run.reset();
+                enemyAnimations.run.play();
+                console.log('🦘 Enemy landed, back to running');
+            }
+        }, jumpDuration * 1000);
     },
 
-    // RALPH FIX: Update jump state
+    // RALPH FIX: Update jump state - now handled by animation
     updateJump(dt) {
-        if (!this.isJumping || !enemyModel) return;
-
-        // Simple arc jump over 1 second
-        const jumpDuration = 1.0;
-        const jumpHeight = 2.0;
-
-        // Calculate jump progress (0 to 1)
-        const jumpTime = (enemyModel.position.y - this.jumpStartY) / jumpHeight;
-
-        if (enemyModel.position.y < this.jumpStartY + jumpHeight && jumpTime < 0.5) {
-            // Going up
-            enemyModel.position.y += jumpHeight * 2 * dt;
-        } else {
-            // Coming down
-            enemyModel.position.y -= jumpHeight * 2 * dt;
-
-            if (enemyModel.position.y <= this.jumpStartY) {
-                enemyModel.position.y = this.jumpStartY;
-                this.isJumping = false;
-                console.log('🦘 Enemy landed!');
-            }
-        }
+        // Animation mixer handles the jump movement
+        // This method can be used for any additional jump logic if needed
     },
 
     takeDamage() {
@@ -4748,6 +4751,20 @@ function loadEnemyCharacter() {
             }
         }, undefined, (error) => {
             console.warn('⚠️ Error loading death animation:', error);
+        });
+
+        // Load jump animation for obstacle avoidance
+        loader.load('Jumping.fbx', (jumpFbx) => {
+            if (jumpFbx.animations && jumpFbx.animations.length > 0) {
+                const jumpClip = normalizeAndCleanAnimation(jumpFbx.animations[0], 'ENEMY JUMP');
+                enemyAnimations.jump = enemyMixer.clipAction(jumpClip);
+                enemyAnimations.jump.setLoop(THREE.LoopOnce, 1); // Play once per jump
+                enemyAnimations.jump.clampWhenFinished = false; // Don't hold on last frame
+                enemyAnimations.jump.timeScale = 1.0;
+                console.log('ENEMY: Jump animation loaded, duration:', jumpClip.duration);
+            }
+        }, undefined, (error) => {
+            console.warn('⚠️ Error loading jump animation:', error);
         });
 
         console.log('Enemy character loaded');
