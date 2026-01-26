@@ -2444,6 +2444,7 @@ const obstacles = [];
 const obstaclePool = [];
 let barrierModelTemplate = null; // 3D model template for concrete barriers
 let roadRollerTemplate = null; // 3D model template for road roller
+let roadGraderTemplate = null; // 3D model template for road grader
 let obstacleModels = []; // Array of all loaded obstacle models
 
 class Obstacle {
@@ -2558,7 +2559,7 @@ const ObstacleManager = {
                 barrierModelTemplate.scale.set(scale, scale, scale);
 
                 obstacleModels.push(barrierModelTemplate);
-                console.log('✅ Concrete barrier loaded (1/' + (obstacleModels.length + 1) + ')');
+                console.log('✅ Concrete barrier loaded (' + obstacleModels.length + '/3)');
             },
             (xhr) => {
                 if (xhr.lengthComputable) {
@@ -2586,8 +2587,7 @@ const ObstacleManager = {
                 roadRollerTemplate.scale.set(scale, scale, scale);
 
                 obstacleModels.push(roadRollerTemplate);
-                console.log('✅ Road roller loaded (' + obstacleModels.length + '/2)');
-                console.log('🎮 All obstacle models ready! Game will randomly spawn:', obstacleModels.length, 'types');
+                console.log('✅ Road roller loaded (' + obstacleModels.length + '/3)');
             },
             (xhr) => {
                 if (xhr.lengthComputable) {
@@ -2597,6 +2597,35 @@ const ObstacleManager = {
             },
             (error) => {
                 console.error('❌ Error loading road roller:', error);
+            }
+        );
+
+        // Load road grader
+        loader.load(
+            'road_grader.glb',
+            (gltf) => {
+                roadGraderTemplate = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(roadGraderTemplate);
+                const size = box.getSize(new THREE.Vector3());
+
+                // Scale to appropriate gameplay size (graders are large vehicles)
+                const targetHeight = 2.0;
+                const scale = targetHeight / size.y;
+                roadGraderTemplate.scale.set(scale, scale, scale);
+
+                obstacleModels.push(roadGraderTemplate);
+                console.log('✅ Road grader loaded (' + obstacleModels.length + '/3)');
+                console.log('🎮 All obstacle models ready! Game will randomly spawn:', obstacleModels.length, 'types');
+            },
+            (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percent = (xhr.loaded / xhr.total * 100).toFixed(2);
+                    console.log('Road grader loading: ' + percent + '%');
+                }
+            },
+            (error) => {
+                console.error('❌ Error loading road grader:', error);
             }
         );
     },
