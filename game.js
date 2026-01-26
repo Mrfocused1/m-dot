@@ -1462,6 +1462,28 @@ const PlayerController = {
     },
 
     startPickup() {
+        // EMERGENCY CLEANUP: If we're still in a throw state, force cleanup
+        // This prevents frozen movement bug on mobile
+        if (this.isThrowing) {
+            console.warn('⚠️ EMERGENCY: startPickup called while still throwing - forcing throw cleanup!');
+            this.isThrowing = false;
+            if (this.throwTimeout) {
+                clearTimeout(this.throwTimeout);
+                this.throwTimeout = null;
+            }
+            // Restore game speed if it's stuck at 0
+            if (GameState.gameSpeed === 0) {
+                GameState.gameSpeed = this.savedGameSpeed || GAME_SPEED;
+                console.log('⚡ EMERGENCY: Restored game speed to', GameState.gameSpeed);
+            }
+        }
+
+        // Reset hasItem to allow pickup (in case previous throw didn't clean up properly)
+        if (this.hasItem && !this.isPickingUp) {
+            console.warn('⚠️ EMERGENCY: hasItem was still true - resetting to allow pickup');
+            this.hasItem = false;
+        }
+
         if (!playerMixer || !playerAnimations.pickup || this.isPickingUp || this.hasItem) return;
 
         console.log('✨ Pickup started!');
@@ -1678,7 +1700,24 @@ const PlayerController = {
         // Position at player's hand
         thrownItem.position.copy(playerModel.position);
         thrownItem.position.y += 2; // Slightly above player
+
+        // CRITICAL: Ensure thrown item is always visible
+        thrownItem.visible = true;
+        thrownItem.traverse((child) => {
+            if (child.isMesh) {
+                child.visible = true;
+                child.castShadow = true;
+                child.receiveShadow = true;
+                // Ensure material is visible
+                if (child.material) {
+                    child.material.visible = true;
+                    child.material.opacity = 1.0;
+                }
+            }
+        });
+
         scene.add(thrownItem);
+        console.log('🥤 Thrown item added to scene, visible:', thrownItem.visible);
 
         // Store reference for camera follow
         this.activeThrownItem = thrownItem;
@@ -7762,6 +7801,14 @@ function animate() {
 
     const rawDelta = clock.getDelta();
     const delta = rawDelta * GameState.timeScale; // Apply slow motion
+
+    // EMERGENCY SAFETY CHECK: Detect and fix stuck gameSpeed
+    // If gameSpeed is 0 but we're not in a throwing state, something went wrong
+    if (GameState.gameSpeed === 0 && !PlayerController.isThrowing && !GameState.stageFrozen) {
+        console.error('🚨 EMERGENCY: gameSpeed stuck at 0 outside of throw/freeze state! Auto-recovering...');
+        GameState.gameSpeed = GAME_SPEED;
+        console.log('⚡ EMERGENCY: Restored gameSpeed to', GAME_SPEED);
+    }
 
     // Always update animations so they loop smoothly regardless of game state
     if (playerMixer) playerMixer.update(delta);
