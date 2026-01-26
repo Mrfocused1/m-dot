@@ -2549,28 +2549,11 @@ class Obstacle {
 
     update(dt) {
         if (this.active) {
-            // ALL obstacles move toward player (Z-axis) - like the road scrolling
-            this.mesh.position.z += GameState.gameSpeed * dt;
+            // Barriers are stationary - they don't move independently
+            // They appear to scroll because the camera is fixed and road moves
 
-            // Vehicles ALSO move horizontally (X-axis) - left/right across lanes
-            if (this.canMoveHorizontally) {
-                this.mesh.position.x += this.horizontalDirection * this.horizontalSpeed * dt;
-
-                // Bounce off the edges (reverse direction when hitting road boundaries)
-                const roadLeftEdge = LANE_POSITIONS[0] - 2; // Left boundary
-                const roadRightEdge = LANE_POSITIONS[2] + 2; // Right boundary
-
-                if (this.mesh.position.x <= roadLeftEdge) {
-                    this.horizontalDirection = 1; // Move right
-                    this.mesh.position.x = roadLeftEdge;
-                } else if (this.mesh.position.x >= roadRightEdge) {
-                    this.horizontalDirection = -1; // Move left
-                    this.mesh.position.x = roadRightEdge;
-                }
-            }
-
-            // Remove if behind camera
-            if (this.mesh.position.z > 10) {
+            // Remove barriers that are too far behind the camera
+            if (this.mesh.position.z > 20) {
                 this.deactivate();
             }
         }
@@ -2886,11 +2869,11 @@ const EnvironmentManager = {
     update(dt) {
         // Update 3D road models with seamless looping
         const loopDistance = roadSegmentLength * roadModels.length;
-        const speed = GameState.gameSpeed; // Use same speed as obstacles
+        const roadSpeed = GameState.gameSpeed * 2.5; // Road moves 2.5x faster for realistic effect
 
         roadModels.forEach(roadModel => {
             // Move road toward camera (player running forward)
-            roadModel.position.z += speed * dt;
+            roadModel.position.z += roadSpeed * dt;
 
             // Seamless loop: when segment passes camera, move it to the back
             if (roadModel.position.z > roadSegmentLength) {
