@@ -803,6 +803,8 @@ let scene, camera, renderer;
 let player, enemy;
 let playerMixer, enemyMixer;
 let playerModel, enemyModel;
+let playerAnimations = {}; // Store run, turnRight animations
+let currentPlayerAnimation = null;
 let clock;
 
 // Game world
@@ -1097,10 +1099,12 @@ const PlayerController = {
     laneChangeSpeed: 10,
     isInvincible: false,
     invincibilityTimer: 0,
+    previousTargetLane: 1,
 
     init() {
         this.currentLane = 1;
         this.targetLane = 1;
+        this.previousTargetLane = 1;
         this.isInvincible = false;
         this.invincibilityTimer = 0;
     },
@@ -1121,6 +1125,13 @@ const PlayerController = {
             Input.inputProcessed = false;
         }
 
+        // Detect lane change and play turn animation
+        if (this.targetLane !== this.previousTargetLane) {
+            const direction = this.targetLane > this.previousTargetLane ? 'right' : 'left';
+            this.playTurnAnimation(direction);
+            this.previousTargetLane = this.targetLane;
+        }
+
         // Smooth lane movement
         if (playerModel) {
             const targetX = LANE_POSITIONS[this.targetLane];
@@ -1130,6 +1141,10 @@ const PlayerController = {
                 playerModel.position.x += diff * this.laneChangeSpeed * dt;
             } else {
                 playerModel.position.x = targetX;
+                // Return to run animation when centered in lane
+                if (currentPlayerAnimation !== 'run' && playerAnimations.run) {
+                    this.switchToRunAnimation();
+                }
             }
         }
 
@@ -1141,6 +1156,39 @@ const PlayerController = {
                 this.invincibilityTimer = 0;
             }
         }
+    },
+
+    playTurnAnimation(direction) {
+        if (!playerMixer) return;
+
+        const animKey = direction === 'left' ? 'turnLeft' : 'turnRight';
+        const turnAnim = playerAnimations[animKey];
+
+        if (turnAnim && playerAnimations.run) {
+            // Fade out run animation
+            playerAnimations.run.fadeOut(0.2);
+
+            // Fade in turn animation
+            turnAnim.reset();
+            turnAnim.fadeIn(0.2);
+            turnAnim.play();
+
+            currentPlayerAnimation = animKey;
+        }
+    },
+
+    switchToRunAnimation() {
+        if (!playerMixer || !playerAnimations.run) return;
+
+        const currentAnim = playerAnimations[currentPlayerAnimation];
+        if (currentAnim) {
+            currentAnim.fadeOut(0.2);
+        }
+
+        playerAnimations.run.reset();
+        playerAnimations.run.fadeIn(0.2);
+        playerAnimations.run.play();
+        currentPlayerAnimation = 'run';
     }
 };
 
@@ -2887,96 +2935,120 @@ const EnvironmentManager = {
 function loadPlayerCharacter() {
     const loader = sharedFBXLoader;
 
+    // Load main running animation
     loader.load('jammer_run.fbx', (fbx) => {
         playerModel = fbx;
         playerModel.scale.set(0.01, 0.01, 0.01);
-        playerModel.position.set(0, 1.0, 0); // Lifted up by 1 unit so feet are on ground
+        playerModel.position.set(0, 1.0, 0);
         playerModel.rotation.y = Math.PI;
 
         playerModel.traverse((child) => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
-                // Keep original material with textures
             }
         });
 
         scene.add(playerModel);
 
-        // Setup animation with proper looping
         playerMixer = new THREE.AnimationMixer(playerModel);
+
         if (fbx.animations && fbx.animations.length > 0) {
-            const clip = fbx.animations[0];
-
-            // === DEBUG: Log animation data ===
-            console.log('=== PLAYER Animation Debug Info ===');
-            console.log('Clip name:', clip.name);
-            console.log('Clip duration:', clip.duration);
-            console.log('Number of tracks:', clip.tracks.length);
-
-            if (clip.tracks.length > 0) {
-                const firstTrack = clip.tracks[0];
-                console.log('First track name:', firstTrack.name);
-                console.log('First track times (first 5):', firstTrack.times.slice(0, 5));
-                console.log('First track times (last 5):', firstTrack.times.slice(-5));
-                console.log('Min time:', Math.min(...firstTrack.times));
-                console.log('Max time:', Math.max(...firstTrack.times));
-            }
-
-            // === SOLUTION: Normalize track times (remove timeline offset) ===
-            let minTime = Infinity;
-            clip.tracks.forEach(track => {
-                const trackMinTime = track.times[0];
-                if (trackMinTime < minTime) {
-                    minTime = trackMinTime;
-                }
-            });
-
-            // Normalize all track times to start at 0
-            if (minTime > 0.001) { // Only normalize if there's a significant offset
-                console.log('PLAYER: Normalizing animation - removing offset of:', minTime);
-                clip.tracks.forEach(track => {
-                    for (let i = 0; i < track.times.length; i++) {
-                        track.times[i] -= minTime;
-                    }
-                });
-                // Recalculate duration
-                clip.duration = clip.tracks.reduce((max, track) => {
-                    return Math.max(max, track.times[track.times.length - 1]);
-                }, 0);
-                console.log('PLAYER: New duration after normalization:', clip.duration);
-            }
-
-            // === RALPH'S FIX: Remove the Hips position track that causes flashing ===
-            console.log('PLAYER: Filtering animation tracks...');
-            const originalTrackCount = clip.tracks.length;
-            clip.tracks = clip.tracks.filter(track => {
-                // Remove ONLY the root Hips position track
-                // This track moves the character in world space, causing visual glitches when looping
-                if (track.name === 'mixamorigHips.position') {
-                    console.log('PLAYER: ❌ Removing:', track.name);
-                    return false;
-                }
-                return true; // Keep all rotation tracks
-            });
-            console.log(`PLAYER: Removed ${originalTrackCount - clip.tracks.length} track(s), kept ${clip.tracks.length}`);
-
-            // === SOLUTION: Try using original clip without subclip first ===
-            const action = playerMixer.clipAction(clip);
-            action.setLoop(THREE.LoopRepeat, Infinity);
-            action.clampWhenFinished = false;
-            action.timeScale = 1.0; // Normal speed
-            action.reset();
-            action.play();
-            console.log('PLAYER: Animation playing with normalized clip, duration:', clip.duration);
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER RUN');
+            playerAnimations.run = playerMixer.clipAction(clip);
+            playerAnimations.run.setLoop(THREE.LoopRepeat, Infinity);
+            playerAnimations.run.timeScale = 1.0;
+            playerAnimations.run.play();
+            currentPlayerAnimation = 'run';
         }
 
         console.log('Player character loaded');
+
+        // Load turn animation
+        loadPlayerTurnAnimation();
     }, undefined, (error) => {
         console.error('Error loading player FBX:', error);
-        // Fallback to simple cube
         createFallbackPlayer();
     });
+}
+
+function loadPlayerTurnAnimation() {
+    const loader = sharedFBXLoader;
+
+    loader.load('jammer_running_turn.fbx', (fbx) => {
+        if (fbx.animations && fbx.animations.length > 0) {
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER TURN');
+
+            // Store right turn
+            playerAnimations.turnRight = playerMixer.clipAction(clip);
+            playerAnimations.turnRight.setLoop(THREE.LoopOnce);
+            playerAnimations.turnRight.clampWhenFinished = true;
+
+            // Create mirrored left turn by cloning and inverting Y rotations
+            const leftClip = clip.clone();
+            leftClip.name = 'turn_left';
+            leftClip.tracks = leftClip.tracks.map(track => {
+                const trackClone = track.clone();
+                // Mirror Y-axis rotations (turns) by inverting quaternion Y and W components
+                if (trackClone.name.includes('.quaternion')) {
+                    for (let i = 0; i < trackClone.values.length; i += 4) {
+                        trackClone.values[i + 1] *= -1; // Invert Y
+                        trackClone.values[i + 3] *= -1; // Invert W
+                    }
+                }
+                return trackClone;
+            });
+
+            playerAnimations.turnLeft = playerMixer.clipAction(leftClip);
+            playerAnimations.turnLeft.setLoop(THREE.LoopOnce);
+            playerAnimations.turnLeft.clampWhenFinished = true;
+
+            console.log('Turn animations loaded and mirrored');
+        }
+    }, undefined, (error) => {
+        console.warn('Turn animation not loaded:', error);
+    });
+}
+
+function normalizeAndCleanAnimation(clip, debugName) {
+    console.log(`=== ${debugName} Animation Debug Info ===`);
+    console.log('Clip duration:', clip.duration);
+    console.log('Number of tracks:', clip.tracks.length);
+
+    // Normalize track times
+    let minTime = Infinity;
+    clip.tracks.forEach(track => {
+        const trackMinTime = track.times[0];
+        if (trackMinTime < minTime) {
+            minTime = trackMinTime;
+        }
+    });
+
+    if (minTime > 0.001) {
+        console.log(`${debugName}: Normalizing animation - removing offset of:`, minTime);
+        clip.tracks.forEach(track => {
+            for (let i = 0; i < track.times.length; i++) {
+                track.times[i] -= minTime;
+            }
+        });
+        clip.duration = clip.tracks.reduce((max, track) => {
+            return Math.max(max, track.times[track.times.length - 1]);
+        }, 0);
+        console.log(`${debugName}: New duration after normalization:`, clip.duration);
+    }
+
+    // Remove Hips position track
+    const originalTrackCount = clip.tracks.length;
+    clip.tracks = clip.tracks.filter(track => {
+        if (track.name === 'mixamorigHips.position') {
+            console.log(`${debugName}: ❌ Removing:`, track.name);
+            return false;
+        }
+        return true;
+    });
+    console.log(`${debugName}: Removed ${originalTrackCount - clip.tracks.length} track(s), kept ${clip.tracks.length}`);
+
+    return clip;
 }
 
 function createFallbackPlayer() {
@@ -5768,6 +5840,15 @@ function startGame() {
     EnemyController.init();
     ObstacleManager.reset();
     UI.updateUI();
+
+    // Load Jammer character for Level 1 if not already loaded
+    if (!playerModel) {
+        loadPlayerCharacter();
+    }
+    // Load enemy character for Level 1 if not already loaded
+    if (!enemyModel) {
+        loadEnemyCharacter();
+    }
 
     console.log('Starting game with level:', GameState.selectedLevel);
 }
