@@ -1350,8 +1350,9 @@ const PlayerController = {
     },
 
     update(dt) {
-        // Auto-jump when approaching a barrier in current lane
-        if (!this.isJumping && playerModel) {
+        // Auto-jump when approaching a barrier - DISABLED for Level 1 (chase mode)
+        // In chase mode, obstacles don't affect the player (visual only)
+        if (!this.isJumping && playerModel && GameState.selectedLevel !== 'chase') {
             this.checkAutoJump();
         }
 
@@ -4353,25 +4354,13 @@ const EnvironmentManager = {
                     if (child.isMesh) {
                         meshCount++;
 
-                        // Clone material to avoid affecting original
-                        const originalMaterial = child.material;
-                        child.material = originalMaterial.clone();
+                        console.log(`   Processing mesh "${child.name}":`, {
+                            hasMaterial: !!child.material,
+                            isArray: Array.isArray(child.material),
+                            materialCount: Array.isArray(child.material) ? child.material.length : 1
+                        });
 
-                        // CRITICAL: Use DoubleSide for maximum visibility
-                        child.material.side = THREE.DoubleSide;
-
-                        // Ensure material is visible
-                        child.material.visible = true;
-                        child.material.transparent = false;
-                        child.material.opacity = 1.0;
-
-                        // For emissive materials (self-glowing), boost emission
-                        if (child.material.emissive) {
-                            child.material.emissive.setHex(0xffffff);
-                            child.material.emissiveIntensity = 2.0;
-                        }
-
-                        // FIX BLURRINESS: Improve texture quality with best filtering settings
+                         // FIX BLURRINESS: Improve texture quality with best filtering settings
                         const applyTextureEnhancements = (texture) => {
                             if (!texture) return;
 
@@ -4379,7 +4368,6 @@ const EnvironmentManager = {
                             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
                             // Use BEST texture filtering for sharpness
-                            // LinearMipMapLinearFilter = trilinear filtering (smoothest)
                             texture.minFilter = THREE.LinearMipMapLinearFilter;
                             texture.magFilter = THREE.LinearFilter;
 
@@ -4392,25 +4380,51 @@ const EnvironmentManager = {
 
                             // Force texture update
                             texture.needsUpdate = true;
-
-                            console.log('     Enhanced texture: anisotropy =', texture.anisotropy, 'filter =', texture.minFilter);
                         };
 
-                        // Apply to emissive map (globe texture is usually here)
-                        if (child.material.emissiveMap) {
-                            applyTextureEnhancements(child.material.emissiveMap);
-                        }
+                        // Handle both single materials and material arrays (for multi-material meshes)
+                        const materials = Array.isArray(child.material) ? child.material : [child.material];
 
-                        // Also improve any other texture maps
-                        ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'aoMap'].forEach(mapName => {
-                            if (child.material[mapName]) {
-                                applyTextureEnhancements(child.material[mapName]);
+                        materials.forEach((mat, index) => {
+                            // Clone material to avoid affecting original
+                            const clonedMaterial = mat.clone();
+
+                            // CRITICAL: Use DoubleSide for maximum visibility (both inside and outside)
+                            clonedMaterial.side = THREE.DoubleSide;
+
+                            // Ensure material is visible
+                            clonedMaterial.visible = true;
+                            clonedMaterial.transparent = false;
+                            clonedMaterial.opacity = 1.0;
+
+                            // For emissive materials (self-glowing), boost emission
+                            if (clonedMaterial.emissive) {
+                                clonedMaterial.emissive.setHex(0xffffff);
+                                clonedMaterial.emissiveIntensity = 2.0;
+                            }
+
+                            // Apply texture enhancements to ALL texture maps
+                            ['emissiveMap', 'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'aoMap'].forEach(mapName => {
+                                if (clonedMaterial[mapName]) {
+                                    applyTextureEnhancements(clonedMaterial[mapName]);
+                                    console.log(`     Enhanced ${mapName} on material ${index}`);
+                                }
+                            });
+
+                            // Enable depth test but disable depth write (render behind everything)
+                            clonedMaterial.depthTest = true;
+                            clonedMaterial.depthWrite = false;
+
+                            // Force material update
+                            clonedMaterial.needsUpdate = true;
+
+                            // Assign back to mesh
+                            if (Array.isArray(child.material)) {
+                                child.material[index] = clonedMaterial;
+                            } else {
+                                child.material = clonedMaterial;
                             }
                         });
-
-                        // Enable depth test but disable depth write (render behind everything)
-                        child.material.depthTest = true;
-                        child.material.depthWrite = false;
 
                         // Render first (behind everything)
                         child.renderOrder = -999;
@@ -4422,13 +4436,12 @@ const EnvironmentManager = {
                         // Make sure mesh is visible
                         child.visible = true;
 
-                        // Force material update
-                        child.material.needsUpdate = true;
-
+                        const firstMat = Array.isArray(child.material) ? child.material[0] : child.material;
                         console.log('   Configured mesh:', child.name || 'unnamed');
-                        console.log('     Material:', child.material.type);
-                        console.log('     Emissive:', child.material.emissive ? child.material.emissive.getHexString() : 'none');
-                        console.log('     Has emissiveMap:', !!child.material.emissiveMap);
+                        console.log('     Material count:', materials.length);
+                        console.log('     Material type:', firstMat.type);
+                        console.log('     Emissive:', firstMat.emissive ? firstMat.emissive.getHexString() : 'none');
+                        console.log('     Has emissiveMap:', !!firstMat.emissiveMap);
                     }
                 });
 
@@ -7254,8 +7267,9 @@ function checkCollisions() {
     // Skip damage collisions if invincible
     if (PlayerController.isInvincible) return;
 
-    // Check obstacle collisions (player can jump over obstacles)
-    if (!PlayerController.isJumping) {
+    // Check obstacle collisions - DISABLED for Level 1 (chase mode)
+    // In chase mode, obstacles are visual only and don't affect the player
+    if (GameState.selectedLevel !== 'chase' && !PlayerController.isJumping) {
         obstacles.forEach(obstacle => {
             if (obstacle.active) {
                 const distance = Math.abs(obstacle.mesh.position.z - playerModel.position.z);
