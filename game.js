@@ -1597,20 +1597,20 @@ const PlayerController = {
                     } else {
                         console.log('🎯 Item hit enemy! Distance:', distance, 'Lane distance:', laneDistance.toFixed(2));
 
-                        // SLOW MOTION EFFECT - watch enemy reaction
+                        // SLOW MOTION EFFECT - watch enemy death reaction
                         GameState.timeScale = 0.3; // Slow to 30% speed
                         console.log('🎬 Slow motion activated!');
 
                         EnemyController.takeDamage();
 
-                        // Hold slow motion for 1.5 seconds to see full reaction
+                        // Hold slow motion for 3 seconds to see full death animation
                         setTimeout(() => {
                             GameState.timeScale = 1.0; // Restore normal speed
                             console.log('🎬 Normal speed restored');
                             scene.remove(thrownItem);
                             // Show "Got em!" text and fade
                             this.showThrowResult(true);
-                        }, 1500);
+                        }, 3000);
 
                         return;
                     }
@@ -1735,9 +1735,13 @@ const PlayerController = {
             this.endThrowCameraFollow();
             this.finishThrow();
 
-            // Reset enemy animation back to run
-            if (enemyAnimations.lookBehind && enemyAnimations.run) {
+            // Reset enemy animation back to run (only if not playing death animation)
+            if (enemyAnimations.death && enemyAnimations.death.isRunning()) {
+                // Death animation is playing, don't interrupt it
+                console.log('💀 Death animation still playing, not resetting to run');
+            } else if (enemyAnimations.lookBehind && enemyAnimations.run) {
                 enemyAnimations.lookBehind.stop();
+                if (enemyAnimations.death) enemyAnimations.death.stop();
                 enemyAnimations.run.reset();
                 enemyAnimations.run.play();
                 console.log('👀 Enemy animation reset to run');
@@ -1821,6 +1825,18 @@ const EnemyController = {
         if (this.health > 0) {
             this.health--;
             console.log(`🎯 Enemy hit! Health: ${this.health}/${this.maxHealth}`);
+
+            // Play death/hit animation
+            if (enemyAnimations.death) {
+                // Stop current animations
+                if (enemyAnimations.run) enemyAnimations.run.stop();
+                if (enemyAnimations.lookBehind) enemyAnimations.lookBehind.stop();
+
+                // Play death animation
+                enemyAnimations.death.reset();
+                enemyAnimations.death.play();
+                console.log('💀 Playing death/hit animation');
+            }
 
             // Update health bar
             UI.updateEnemyHealthBar();
@@ -4274,6 +4290,20 @@ function loadEnemyCharacter() {
             }
         }, undefined, (error) => {
             console.warn('⚠️ Error loading look-behind animation:', error);
+        });
+
+        // Load death/hit animation from separate file
+        loader.load('Death.fbx', (deathFbx) => {
+            if (deathFbx.animations && deathFbx.animations.length > 0) {
+                const deathClip = normalizeAndCleanAnimation(deathFbx.animations[0], 'ENEMY DEATH');
+                enemyAnimations.death = enemyMixer.clipAction(deathClip);
+                enemyAnimations.death.setLoop(THREE.LoopOnce, 1); // Play once
+                enemyAnimations.death.clampWhenFinished = true; // Hold on last frame
+                enemyAnimations.death.timeScale = 1.0;
+                console.log('ENEMY: Death/Hit animation loaded, duration:', deathClip.duration);
+            }
+        }, undefined, (error) => {
+            console.warn('⚠️ Error loading death animation:', error);
         });
 
         console.log('Enemy character loaded');
