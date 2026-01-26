@@ -2886,10 +2886,11 @@ const EnvironmentManager = {
     update(dt) {
         // Update 3D road models with seamless looping
         const loopDistance = roadSegmentLength * roadModels.length;
+        const speed = GameState.gameSpeed; // Use same speed as obstacles
 
         roadModels.forEach(roadModel => {
             // Move road toward camera (player running forward)
-            roadModel.position.z += GameState.gameSpeed * dt;
+            roadModel.position.z += speed * dt;
 
             // Seamless loop: when segment passes camera, move it to the back
             if (roadModel.position.z > roadSegmentLength) {
