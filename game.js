@@ -2443,6 +2443,8 @@ const MazeController = {
 const obstacles = [];
 const obstaclePool = [];
 let barrierModelTemplate = null; // 3D model template for concrete barriers
+let roadRollerTemplate = null; // 3D model template for road roller
+let obstacleModels = []; // Array of all loaded obstacle models
 
 class Obstacle {
     constructor() {
@@ -2490,10 +2492,16 @@ class Obstacle {
         }
     }
 
-    activate(lane, zPosition) {
+    activate(lane, zPosition, useRandomModel = true) {
+        // If we have multiple obstacle models loaded, pick a random one
+        if (useRandomModel && obstacleModels.length > 0) {
+            const randomModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
+            this.replaceWithModel(randomModel);
+        }
+
         this.lane = lane;
         this.mesh.position.x = LANE_POSITIONS[lane];
-        this.mesh.position.y = barrierModelTemplate ? 0 : 1; // 3D models sit on ground, boxes hover
+        this.mesh.position.y = obstacleModels.length > 0 ? 0 : 1; // 3D models sit on ground, boxes hover
         this.mesh.position.z = zPosition;
         this.active = true;
         scene.add(this.mesh);
@@ -2526,58 +2534,69 @@ const ObstacleManager = {
             obstaclePool.push(new Obstacle());
         }
 
-        // Load 3D barrier model
-        this.loadBarrierModel();
+        // Load 3D obstacle models
+        this.loadObstacleModels();
     },
 
-    loadBarrierModel() {
-        console.log('Loading concrete barrier model...');
+    loadObstacleModels() {
+        console.log('Loading obstacle models...');
 
         const loader = sharedGLTFLoader;
 
+        // Load concrete barrier
         loader.load(
             'concrete_road_barrier_photoscanned.glb',
-            // onLoad
             (gltf) => {
                 barrierModelTemplate = gltf.scene;
 
-                console.log('✅ Concrete barrier model loaded');
-
-                // Calculate bounding box to understand size
                 const box = new THREE.Box3().setFromObject(barrierModelTemplate);
                 const size = box.getSize(new THREE.Vector3());
-                console.log('Barrier size:', {
-                    x: size.x.toFixed(2),
-                    y: size.y.toFixed(2),
-                    z: size.z.toFixed(2)
-                });
 
-                // Adjust scale if needed (barriers are usually about 1m tall)
-                const targetHeight = 1.2; // Desired height in game units
-                const currentHeight = size.y;
-                const scale = targetHeight / currentHeight;
+                // Scale to appropriate gameplay size
+                const targetHeight = 1.2;
+                const scale = targetHeight / size.y;
                 barrierModelTemplate.scale.set(scale, scale, scale);
 
-                console.log('Barrier scaled by:', scale.toFixed(2));
-
-                // Replace all existing obstacles with 3D models
-                obstaclePool.forEach(obstacle => {
-                    obstacle.replaceWithModel(barrierModelTemplate);
-                });
-
-                console.log('✅ All obstacles updated with 3D barrier models');
+                obstacleModels.push(barrierModelTemplate);
+                console.log('✅ Concrete barrier loaded (1/' + (obstacleModels.length + 1) + ')');
             },
-            // onProgress
             (xhr) => {
                 if (xhr.lengthComputable) {
                     const percent = (xhr.loaded / xhr.total * 100).toFixed(2);
                     console.log('Barrier loading: ' + percent + '%');
                 }
             },
-            // onError
             (error) => {
-                console.error('❌ Error loading barrier model:', error);
-                console.log('Using fallback green cubes');
+                console.error('❌ Error loading barrier:', error);
+            }
+        );
+
+        // Load road roller
+        loader.load(
+            'road_roller.glb',
+            (gltf) => {
+                roadRollerTemplate = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(roadRollerTemplate);
+                const size = box.getSize(new THREE.Vector3());
+
+                // Scale to appropriate gameplay size (rollers are bigger than barriers)
+                const targetHeight = 1.8;
+                const scale = targetHeight / size.y;
+                roadRollerTemplate.scale.set(scale, scale, scale);
+
+                obstacleModels.push(roadRollerTemplate);
+                console.log('✅ Road roller loaded (' + obstacleModels.length + '/2)');
+                console.log('🎮 All obstacle models ready! Game will randomly spawn:', obstacleModels.length, 'types');
+            },
+            (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percent = (xhr.loaded / xhr.total * 100).toFixed(2);
+                    console.log('Road roller loading: ' + percent + '%');
+                }
+            },
+            (error) => {
+                console.error('❌ Error loading road roller:', error);
             }
         );
     },
