@@ -810,6 +810,9 @@ const LANE_WIDTH = 3;
 const LANE_POSITIONS = [-LANE_WIDTH, 0, LANE_WIDTH];
 const GAME_SPEED = 15;
 
+// Help overlay
+let helpOverlayVisible = false;
+
 // Shooting game variables (now maze exploration)
 let shooterModel, shooterMixer;
 let bullets = [];
@@ -1066,6 +1069,12 @@ const Input = {
     },
 
     handleKeyDown(e) {
+        // Toggle help overlay
+        if (e.key === 'h' || e.key === 'H') {
+            toggleHelpOverlay();
+            return;
+        }
+
         if (e.key === 'ArrowLeft') {
             this.touchSide = 'LEFT';
             this.touchActive = true;
@@ -1222,6 +1231,12 @@ const MazeController = {
     },
 
     handleKeyDown(e) {
+        // Toggle help overlay
+        if (e.key === 'h' || e.key === 'H') {
+            toggleHelpOverlay();
+            return;
+        }
+
         // Prevent default browser behavior for game keys (especially spacebar which scrolls page)
         if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
             e.preventDefault();
@@ -5345,6 +5360,141 @@ function handlePlayerHit() {
 }
 
 // ============================================================================
+// HELP OVERLAY
+// ============================================================================
+
+function toggleHelpOverlay() {
+    helpOverlayVisible = !helpOverlayVisible;
+
+    let helpDiv = document.getElementById('help-overlay');
+    let backdrop = document.getElementById('help-backdrop');
+
+    if (helpOverlayVisible) {
+        // Create backdrop if it doesn't exist
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.id = 'help-backdrop';
+            backdrop.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                z-index: 9999;
+            `;
+            backdrop.onclick = toggleHelpOverlay; // Click backdrop to close
+            document.body.appendChild(backdrop);
+        }
+
+        // Create help overlay if it doesn't exist
+        if (!helpDiv) {
+            helpDiv = document.createElement('div');
+            helpDiv.id = 'help-overlay';
+            helpDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.95);
+                color: white;
+                padding: 30px 40px;
+                border-radius: 15px;
+                border: 2px solid #4fc3f7;
+                z-index: 10000;
+                font-family: Arial, sans-serif;
+                max-width: 500px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+                pointer-events: auto;
+            `;
+            document.body.appendChild(helpDiv);
+        }
+
+        // Set content based on current level
+        const isLevel1 = GameState.selectedLevel === 'chase';
+        const isLevel2 = GameState.selectedLevel === 'shoot';
+
+        helpDiv.innerHTML = `
+            <h2 style="color: #4fc3f7; margin-bottom: 20px; text-align: center;">
+                ${isLevel1 ? '🏃 Stage 1 Controls' : '🚗 Stage 2 Controls'}
+            </h2>
+
+            ${isLevel1 ? `
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">⌨️ Keyboard:</div>
+                    <div style="margin-left: 20px; line-height: 1.8;">
+                        <div><span style="color: #4fc3f7;">←</span> Arrow Left - Move to left lane</div>
+                        <div><span style="color: #4fc3f7;">→</span> Arrow Right - Move to right lane</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">🖱️ Mouse:</div>
+                    <div style="margin-left: 20px; line-height: 1.8;">
+                        <div>Click left side of screen - Move left</div>
+                        <div>Click right side of screen - Move right</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">📱 Touch:</div>
+                    <div style="margin-left: 20px; line-height: 1.8;">
+                        <div>Tap left side - Move left</div>
+                        <div>Tap right side - Move right</div>
+                    </div>
+                </div>
+            ` : `
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">⌨️ Keyboard:</div>
+                    <div style="margin-left: 20px; line-height: 1.8;">
+                        <div><span style="color: #4fc3f7;">↑ ↓ ← →</span> Arrow Keys - Move (8 directions)</div>
+                        <div><span style="color: #4fc3f7;">Space</span> - Shoot</div>
+                        <div style="opacity: 0.6; font-size: 12px; margin-top: 5px;">Advanced: 1-4 keys for manual rotation</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">🖱️ Mouse:</div>
+                    <div style="margin-left: 20px; line-height: 1.8;">
+                        <div>Click - Shoot</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">📱 Touch:</div>
+                    <div style="margin-left: 20px; line-height: 1.8;">
+                        <div>Swipe - Move in 8 directions</div>
+                        <div>Tap - Shoot</div>
+                    </div>
+                </div>
+            `}
+
+            <div style="text-align: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid #333; color: #888; font-size: 14px;">
+                Press <span style="color: #4fc3f7;">H</span> to close
+            </div>
+        `;
+
+        helpDiv.style.display = 'block';
+        backdrop.style.display = 'block';
+    } else {
+        // Hide help overlay and backdrop
+        if (helpDiv) {
+            helpDiv.style.display = 'none';
+        }
+        if (backdrop) {
+            backdrop.style.display = 'none';
+        }
+    }
+}
+
+// Also close help overlay with Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && helpOverlayVisible) {
+        toggleHelpOverlay();
+    }
+});
+
+// ============================================================================
 // UI OVERLAY
 // ============================================================================
 
@@ -5381,6 +5531,9 @@ const UI = {
                             <div style="font-size: 40px; margin-bottom: 15px;">🏃</div>
                             <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 1</h3>
                             <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Chase the enemy while dodging obstacles!</p>
+                            <div style="font-size: 11px; color: #ccc; margin-bottom: 15px; opacity: 0.8;">
+                                ⌨️ Arrow L/R or Click L/R
+                            </div>
                             <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
                                 <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
                             </div>
@@ -5401,13 +5554,16 @@ const UI = {
                             <div style="font-size: 40px; margin-bottom: 15px;">🚗</div>
                             <h3 style="font-size: 24px; margin-bottom: 10px; color: white;">Stage 2</h3>
                             <p style="font-size: 14px; color: #ddd; margin-bottom: 15px;">Walk through the tunnel scene!</p>
+                            <div style="font-size: 11px; color: #ccc; margin-bottom: 15px; opacity: 0.8;">
+                                ⌨️ Arrow Keys • Space/Click to Shoot
+                            </div>
                             <div style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; display: inline-block;">
                                 <span style="font-size: 12px; font-weight: bold;">▶ PLAY NOW</span>
                             </div>
                         </div>
                     </div>
 
-                    <p style="font-size: 14px; color: #666; margin-top: 40px;">Use Arrow Keys to move • Spacebar to shoot</p>
+                    <p style="font-size: 14px; color: #888; margin-top: 40px;">Desktop & Mobile Compatible • Press H for help in-game</p>
                 </div>
             `;
         } else if (GameState.screen === 'PLAYING') {
@@ -5416,14 +5572,18 @@ const UI = {
             const modeText = GameState.selectedLevel === 'shoot' ? '🎬 ANIMATION TESTING' :
                             GameState.currentMode === 'CHASE' ? 'CHASE MODE' : '!!! RUN AWAY !!!';
 
-            // Show controls for testing mode (HIDDEN)
-            const mazeControls = '';
+            // Show controls hint
+            const controlsHint = `
+                <div style="position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.6); color: #888; padding: 8px 12px; border-radius: 8px; font-size: 12px; pointer-events: none;">
+                    Press <span style="color: #4fc3f7;">H</span> for help
+                </div>
+            `;
 
             this.overlay.innerHTML = `
                 <div style="display: none; position: absolute; top: 0; left: 0; width: 100%; padding: 10px; text-align: center; background: ${modeColor}; color: white; font-size: 24px; font-weight: bold;">
                     ${modeText}
                 </div>
-                ${mazeControls}
+                ${controlsHint}
             `;
         } else if (GameState.screen === 'GAMEOVER') {
             this.overlay.innerHTML = `
@@ -5433,7 +5593,7 @@ const UI = {
                     ${GameState.isNewHighScore ?
                         '<p style="font-size: 24px; color: #ffeb3b;">NEW HIGH SCORE!</p>' :
                         '<p style="font-size: 18px; color: #888;">Best: ' + GameState.highScore + '</p>'}
-                    <p style="font-size: 24px; color: #4fc3f7; margin-top: 60px; pointer-events: all; cursor: pointer;" onclick="resetGame()">TAP TO PLAY AGAIN</p>
+                    <p style="font-size: 24px; color: #4fc3f7; margin-top: 60px; pointer-events: all; cursor: pointer;" onclick="resetGame()">CLICK TO PLAY AGAIN</p>
                 </div>
             `;
         }
