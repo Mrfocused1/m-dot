@@ -827,6 +827,20 @@ const loadingProgress = {
                       (this.enemyJumpAnim ? 1 : 0);
         const progress = Math.round((loaded / total) * 100);
 
+        // Update intro animation loading bar if present
+        const introBarFill = document.getElementById('intro-bar-fill');
+        const introPercentage = document.getElementById('intro-percentage');
+        const introText = document.getElementById('intro-text');
+        if (introBarFill && introPercentage && introText) {
+            introBarFill.style.width = progress + '%';
+            introPercentage.textContent = progress + '%';
+            if (progress < 100) {
+                introText.textContent = `LOADING_ASSETS...${progress}%`;
+            } else {
+                introText.textContent = 'READY_TO_START...';
+            }
+        }
+
         // Send progress to parent window if in preload mode
         const urlParams = new URLSearchParams(window.location.search);
         const isPreloading = urlParams.get('preload') === 'true';
@@ -837,6 +851,102 @@ const loadingProgress = {
             }, '*');
             console.log(`📦 Loading progress: ${progress}% (${loaded}/${total} assets loaded)`);
         }
+    }
+};
+
+// Intro Animation Controller
+const IntroAnimation = {
+    started: false,
+    completed: false,
+
+    start() {
+        if (this.started) return;
+        this.started = true;
+
+        console.log('🎬 Starting intro animation');
+
+        // Animate the Street Fighter-style intro
+        const left = document.getElementById('intro-loader-left');
+        const right = document.getElementById('intro-loader-right');
+        const vs = document.getElementById('intro-vs');
+        const text = document.getElementById('intro-text');
+        const barContainer = document.getElementById('intro-bar-container');
+        const loader = document.getElementById('intro-loader');
+
+        if (!left || !right || !vs || !text || !barContainer || !loader) return;
+
+        // 1. Panels slide in (800ms)
+        setTimeout(() => {
+            left.style.transition = 'transform 0.8s cubic-bezier(0.76, 0, 0.24, 1)';
+            right.style.transition = 'transform 0.8s cubic-bezier(0.76, 0, 0.24, 1)';
+            left.style.transform = 'translateX(0%)';
+            right.style.transform = 'translateX(0%)';
+        }, 100);
+
+        // 2. VS slam with elastic effect (at 900ms)
+        setTimeout(() => {
+            vs.style.transition = 'transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55), opacity 0.5s';
+            vs.style.transform = 'translate(-50%, -50%) scale(1)';
+            vs.style.opacity = '1';
+
+            // Screen shake
+            let shakeCount = 0;
+            const shakeInterval = setInterval(() => {
+                if (shakeCount < 6) {
+                    const x = (shakeCount % 2 === 0) ? 5 : -5;
+                    const y = (shakeCount % 2 === 0) ? 5 : -5;
+                    loader.style.transform = `translate(${x}px, ${y}px)`;
+                    shakeCount++;
+                } else {
+                    loader.style.transform = 'translate(0, 0)';
+                    clearInterval(shakeInterval);
+                }
+            }, 40);
+        }, 900);
+
+        // 3. Text flash (at 1500ms)
+        setTimeout(() => {
+            let flashCount = 0;
+            const flashInterval = setInterval(() => {
+                if (flashCount < 3) {
+                    text.style.opacity = flashCount % 2 === 0 ? '1' : '0';
+                    flashCount++;
+                } else {
+                    text.style.opacity = '1';
+                    clearInterval(flashInterval);
+                }
+            }, 100);
+        }, 1500);
+
+        // 4. Show loading bar (at 1900ms)
+        setTimeout(() => {
+            barContainer.style.transition = 'opacity 0.3s';
+            barContainer.style.opacity = '1';
+        }, 1900);
+    },
+
+    complete() {
+        if (this.completed) return;
+        this.completed = true;
+
+        console.log('✅ Intro animation complete - fading out');
+
+        const loader = document.getElementById('intro-loader');
+        if (!loader) return;
+
+        // Wait a moment to show 100%, then fade out
+        setTimeout(() => {
+            loader.style.transition = 'opacity 0.8s ease-out';
+            loader.style.opacity = '0';
+
+            // Remove from DOM after fade
+            setTimeout(() => {
+                if (loader && loader.parentNode) {
+                    loader.parentNode.removeChild(loader);
+                }
+                console.log('🎮 Game ready - intro removed');
+            }, 800);
+        }, 500);
     }
 };
 
@@ -1981,6 +2091,16 @@ const PlayerController = {
                 console.log('🎯 Item missed - traveled too far. Final distance from enemy:',
                     enemyModel ? thrownItem.position.distanceTo(enemyModel.position).toFixed(2) : 'N/A');
                 scene.remove(thrownItem);
+
+                // CRITICAL: Reset look-behind animation if it was triggered
+                // Without this, enemy stays frozen in look-behind pose after miss
+                if (enemyLookBehindTriggered && enemyAnimations.lookBehind && enemyAnimations.run) {
+                    enemyAnimations.lookBehind.stop();
+                    enemyAnimations.run.reset();
+                    enemyAnimations.run.play();
+                    console.log('👀 Look-behind stopped, resuming run animation after miss');
+                }
+
                 // Show "Missed!" text and fade
                 this.showThrowResult(false);
                 return;
@@ -2059,10 +2179,10 @@ const PlayerController = {
             text.style.transform = 'scale(1)';
         }, 50);
 
-        // Hold for 1 second, then fade screen and return to gameplay
+        // Hold briefly, then fade screen and return to gameplay
         setTimeout(() => {
             this.fadeAndReturnToGameplay(overlay);
-        }, 1500);
+        }, 800);
     },
 
     fadeAndReturnToGameplay(resultOverlay) {
@@ -2091,7 +2211,7 @@ const PlayerController = {
 
         // After fade to black, clean up and return to gameplay
         setTimeout(() => {
-            console.log('🎬 Fade to black complete - cleaning up and returning to gameplay');
+            console.log('🎬 Fade to black complete - cleaning up and returning to gameplay (FAST)');
 
             // Remove result text
             if (resultOverlay && resultOverlay.parentNode) {
@@ -2135,62 +2255,74 @@ const PlayerController = {
             if (enemyAnimations.death && enemyAnimations.death.isRunning()) {
                 // Death animation is playing, don't interrupt it
                 console.log('💀 Death animation still playing, not resetting to run');
-            } else if (enemyAnimations.lookBehind && enemyAnimations.run) {
-                enemyAnimations.lookBehind.stop();
-                if (enemyAnimations.death) enemyAnimations.death.stop();
+            } else if (enemyAnimations.run && enemyMixer) {
+                // === COMPREHENSIVE ENEMY RESET - Three.js Best Practice ===
+                // Source: https://github.com/mrdoob/three.js/issues/13097
+                // Key insight: "only stop/reset the action does the trick"
+                // DO NOT use skeleton.pose() + mixer.update() - causes mixer optimization issues
+                // per GitHub Issue #25518 (mixer won't update bones without keyframe changes)
 
-                // CRITICAL FIX: Reset enemy model transform to prevent lopsided running
-                // Death animation may have altered rotation/position/scale - restore to initial state
+                // 1. Stop ALL animations on mixer to clean up death animation state
+                enemyMixer.stopAllAction();
+                console.log('🎬 Stopped all enemy animations');
+
+                // 2. Reset model transform (position, rotation, scale)
                 if (enemyModel) {
-                    // Reset root model transform
                     enemyModel.rotation.y = Math.PI; // Face away from player (180 degrees)
-                    enemyModel.position.set(0, 1.0, -15); // Reset to starting position (center lane, X=0)
-                    enemyModel.scale.set(0.01, 0.01, 0.01); // Reset to correct scale
-
-                    // CRITICAL FIX: Reset ALL bone transforms to bind pose
-                    // Death animation affects skeleton bones, causing lopsided/tilted body
-                    enemyModel.traverse((child) => {
-                        if (child.isBone) {
-                            // Reset bone rotation to identity (no rotation)
-                            child.quaternion.set(0, 0, 0, 1);
-                            // Reset bone position to origin (relative to parent)
-                            child.position.set(0, 0, 0);
-                            // Keep scale at 1
-                            child.scale.set(1, 1, 1);
-                        }
-                    });
-
-                    console.log('🔄 Enemy model transform reset (rotation, position, scale, bones)');
+                    enemyModel.position.set(0, 1.0, -15); // Center lane
+                    enemyModel.scale.set(0.01, 0.01, 0.01);
+                    console.log('🔄 Enemy model transform reset to spawn position');
                 }
 
-                // CRITICAL FIX: Reset enemy lane to center lane (lane 1)
-                // If enemy was in a different lane when hit, this prevents respawn to the side
+                // 3. CRITICAL: Fully reset death animation state
+                // clampWhenFinished keeps the last frame active, must disable completely
+                if (enemyAnimations.death) {
+                    enemyAnimations.death.stop();
+                    enemyAnimations.death.reset();
+                    enemyAnimations.death.enabled = false;
+                    enemyAnimations.death.time = 0;
+                    enemyAnimations.death.setEffectiveWeight(0);
+                    console.log('💀 Death animation fully disabled and reset');
+                }
+                if (enemyAnimations.lookBehind) {
+                    enemyAnimations.lookBehind.stop();
+                    enemyAnimations.lookBehind.enabled = false;
+                    enemyAnimations.lookBehind.setEffectiveWeight(0);
+                }
+
+                // 4. Reset enemy lane to center
                 EnemyController.currentLane = 1;
                 EnemyController.targetLane = 1;
-                console.log('🔄 Enemy lane reset to center (lane 1)');
 
+                // 5. Start run animation fresh with COMPLETE reset
+                // This naturally returns skeleton to run animation's first frame
+                // without manual bone manipulation
+                enemyAnimations.run.stop();
                 enemyAnimations.run.reset();
+                enemyAnimations.run.time = 0;
+                enemyAnimations.run.enabled = true;
+                enemyAnimations.run.setEffectiveWeight(1);
+                enemyAnimations.run.setEffectiveTimeScale(1);
                 enemyAnimations.run.play();
-                console.log('👀 Enemy animation reset to run');
+
+                console.log('✅ Enemy fully reset: all actions stopped, run animation restarted from frame 0');
             }
             enemyLookBehindTriggered = false;
 
             console.log('🎬 States after cleanup: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp + ', gameSpeed=' + GameState.gameSpeed);
 
-            // Fade back in
-            setTimeout(() => {
-                fadeOverlay.style.opacity = '0';
-                console.log('🎬 Fading back in - gameplay should resume');
+            // Fade back in IMMEDIATELY to reduce perceived delay
+            fadeOverlay.style.opacity = '0';
+            console.log('🎬 Fading back in - gameplay resuming NOW');
 
-                // Remove fade overlay after transition
-                setTimeout(() => {
-                    if (fadeOverlay && fadeOverlay.parentNode) {
-                        fadeOverlay.parentNode.removeChild(fadeOverlay);
-                    }
-                    console.log('🎬 Fade sequence complete - back to normal gameplay');
-                }, 500);
-            }, 100);
-        }, 500);
+            // Remove fade overlay after transition completes
+            setTimeout(() => {
+                if (fadeOverlay && fadeOverlay.parentNode) {
+                    fadeOverlay.parentNode.removeChild(fadeOverlay);
+                }
+                console.log('🎬 Fade sequence complete - back to normal gameplay');
+            }, 500);
+        }, 300);
     },
 
 
@@ -2202,6 +2334,9 @@ const PlayerController = {
             currentAnim.fadeOut(0.2);
         }
 
+        // CRITICAL: stop() before reset() ensures clean animation state
+        // Prevents state leaks during rapid animation transitions
+        playerAnimations.run.stop();
         playerAnimations.run.reset();
         playerAnimations.run.fadeIn(0.2);
         playerAnimations.run.play();
@@ -2216,6 +2351,9 @@ const PlayerController = {
             currentAnim.fadeOut(0.2);
         }
 
+        // CRITICAL: stop() before reset() ensures clean animation state
+        // Prevents state leaks during rapid animation transitions
+        playerAnimations.runHolding.stop();
         playerAnimations.runHolding.reset();
         playerAnimations.runHolding.fadeIn(0.2);
         playerAnimations.runHolding.play();
@@ -2284,6 +2422,8 @@ const EnemyController = {
         if (enemyAnimations.run) enemyAnimations.run.stop();
         if (enemyAnimations.lookBehind) enemyAnimations.lookBehind.stop();
 
+        // CRITICAL: stop() before reset() for consistent animation state pattern
+        enemyAnimations.jump.stop();
         enemyAnimations.jump.reset();
         enemyAnimations.jump.play();
         console.log('🦘 Playing jump animation');
@@ -2295,6 +2435,8 @@ const EnemyController = {
         setTimeout(() => {
             this.isJumping = false;
             if (enemyAnimations.run) {
+                // CRITICAL: stop() before reset() for consistent animation state pattern
+                enemyAnimations.run.stop();
                 enemyAnimations.run.reset();
                 enemyAnimations.run.play();
                 console.log('🦘 Enemy landed, back to running');
@@ -4730,6 +4872,10 @@ function checkStage1AssetsLoaded() {
 
     if (allAssetsLoaded && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
         console.log('✅ ALL Stage 1 assets loaded (11/11), starting game');
+
+        // Fade out intro animation if present
+        IntroAnimation.complete();
+
         GameState.isRunning = true;
         UI.updateUI();
 
@@ -8385,6 +8531,13 @@ function animate() {
 function init() {
     console.log('Merkle Man - Initializing...');
 
+    // Start intro animation if on game page
+    const urlParams = new URLSearchParams(window.location.search);
+    const levelParam = urlParams.get('level');
+    if (levelParam === '1') {
+        IntroAnimation.start();
+    }
+
     // Create scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87CEEB); // Sky blue - bright default
@@ -8429,7 +8582,7 @@ function init() {
     // No intro music - removed per user request
 
     // Check URL parameters - auto-start Animation Testing if collision version specified
-    const urlParams = new URLSearchParams(window.location.search);
+    // urlParams already declared above for intro animation check
     let collisionVersion = urlParams.get('v') || urlParams.get('version');
 
     // DEFAULT: If no parameter, auto-use V2 collision
@@ -8492,7 +8645,7 @@ function init() {
     }
 
     // Check for level parameter and auto-start the game
-    const levelParam = urlParams.get('level');
+    // levelParam already declared above for intro animation check
     if (levelParam === '1') {
         console.log('🎯 Auto-starting Mission 01 (Chase Mode)');
         setTimeout(() => {

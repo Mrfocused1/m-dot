@@ -122,57 +122,7 @@
         <source src="merkleman-theme.mp3" type="audio/mpeg">
     </audio>
 
-    <!-- LOADING SCREEN (Street Fighter Style) - Hidden by default -->
-    <div id="loader" class="fixed inset-0 z-[100] flex overflow-hidden font-display bg-black select-none" style="display: none;">
-        <!-- Left Side (Hero) -->
-        <div id="loader-left" class="w-1/2 h-full bg-merkle-dark border-r-4 border-merkle-green flex flex-col items-end justify-center pr-4 md:pr-10 relative transform -translate-x-full z-10">
-            <div class="text-merkle-green text-4xl md:text-6xl font-black italic tracking-tighter">MERKLE</div>
-            <div class="text-white text-3xl md:text-5xl font-bold uppercase">Man</div>
-            <div class="mt-4 px-4 py-1 bg-merkle-green text-black font-bold text-xs uppercase tracking-widest">Player 1</div>
-            <!-- Decorative grid -->
-            <div class="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
-            <!-- Character Portrait Silhouette (CSS-based) -->
-             <div class="absolute bottom-0 left-0 w-full h-3/4 opacity-10 pointer-events-none" style="background: radial-gradient(circle at bottom left, #00ff41, transparent 60%);"></div>
-        </div>
-
-        <!-- Right Side (Villain) -->
-        <div id="loader-right" class="w-1/2 h-full bg-[#1a0505] border-l-4 border-red-600 flex flex-col items-start justify-center pl-4 md:pl-10 relative transform translate-x-full z-10">
-            <div class="text-red-500 text-4xl md:text-6xl font-black italic tracking-tighter text-right md:text-left">SOUND</div>
-            <div class="text-white text-3xl md:text-5xl font-bold uppercase text-right md:text-left">BOY</div>
-            <div class="mt-4 px-4 py-1 bg-red-600 text-white font-bold text-xs uppercase tracking-widest">Challenger</div>
-            <!-- Decorative noise -->
-            <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, #ff0000 0, #ff0000 1px, transparent 0, transparent 50%); background-size: 10px 10px;"></div>
-             <div class="absolute bottom-0 right-0 w-full h-3/4 opacity-10 pointer-events-none" style="background: radial-gradient(circle at bottom right, #ff0000, transparent 60%);"></div>
-        </div>
-
-        <!-- Center VS Logo (Below player/opponent text) -->
-        <div id="loader-vs" class="absolute top-[60%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center opacity-0 scale-0">
-            <div class="relative">
-                <div class="text-8xl md:text-9xl font-black italic text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 drop-shadow-[0_0_30px_rgba(234,179,8,0.8)]" style="-webkit-text-stroke: 2px white;">
-                    VS
-                </div>
-                <div class="absolute inset-0 animate-pulse mix-blend-overlay bg-yellow-400 blur-xl opacity-50"></div>
-            </div>
-        </div>
-
-        <!-- Loading Bar -->
-        <div id="loader-bar-container" class="absolute bottom-24 left-1/2 transform -translate-x-1/2 w-4/5 md:w-2/3 max-w-2xl z-20 opacity-0">
-            <div class="relative">
-                <!-- Background bar -->
-                <div class="h-3 bg-white/10 border border-white/20 rounded-full overflow-hidden backdrop-blur-sm">
-                    <!-- Progress bar fill -->
-                    <div id="loader-bar-fill" class="h-full bg-gradient-to-r from-merkle-green via-green-400 to-merkle-green rounded-full shadow-[0_0_20px_rgba(0,255,65,0.6)] transition-all duration-300" style="width: 0%;"></div>
-                </div>
-                <!-- Percentage text -->
-                <div id="loader-percentage" class="absolute -top-6 left-0 text-merkle-green font-mono text-xs tracking-wider">0%</div>
-            </div>
-        </div>
-
-        <!-- Loading Text -->
-        <div id="loader-text" class="absolute bottom-10 left-1/2 transform -translate-x-1/2 text-white/50 font-mono text-xs md:text-sm tracking-[0.5em] z-20 opacity-0">
-            INITIALIZING_GAME_DATA...
-        </div>
-    </div>
+    <!-- LOADING SCREEN REMOVED - Now plays on game.html directly -->
 
     <!-- Background Grid -->
     <div class="fixed inset-0 bg-grid-pattern bg-[length:40px_40px] pointer-events-none z-[-1] opacity-20"></div>
@@ -291,9 +241,9 @@
                 gsap.to(statusText, {duration: 1, text: "MISSION CONFIRMED: PURSUIT MODE ENGAGED", ease: "none", delimiter: ""});
                 statusText.className = "font-mono text-xs md:text-sm tracking-[0.1em] md:tracking-[0.2em] text-merkle-green";
 
-                // Show loading screen after brief delay
+                // Navigate directly to game - intro animation will play on game page
                 setTimeout(() => {
-                    showLoadingScreen();
+                    window.location.href = 'game.html?level=1';
                 }, 1000);
             } else {
                 gsap.to(statusText, {duration: 1, text: "MISSION CONFIRMED: LETHAL FORCE AUTHORIZED", ease: "none", delimiter: ""});
@@ -306,83 +256,8 @@
             }
         }
 
-        // --- LOADING SCREEN ANIMATION ---
-        function showLoadingScreen() {
-            const loader = document.getElementById('loader');
-            loader.style.display = 'flex';
-
-            // No intro music - removed per user request
-
-            const loaderTl = gsap.timeline();
-            // Note: Navigation handled by message listener when game signals it's fully loaded
-
-            // 1. Panels Slide In (Impact)
-            loaderTl.to("#loader-left", { x: "0%", duration: 0.8, ease: "power4.inOut" })
-                    .to("#loader-right", { x: "0%", duration: 0.8, ease: "power4.inOut" }, "<")
-            // 2. VS Slam & Shake
-                    .to("#loader-vs", { scale: 1, opacity: 1, duration: 0.5, ease: "elastic.out(1, 0.4)" })
-                    .to("#loader", { x: "+=5", y: "+=5", repeat: 5, duration: 0.04, yoyo: true }, "<0.1") // Screen Shake
-            // 3. Text Type/Flash
-                    .to("#loader-text", { opacity: 1, duration: 0.1, repeat: 3, yoyo: true }, "+=0.2")
-            // 4. Show loading bar
-                    .to("#loader-bar-container", { opacity: 1, duration: 0.3 }, "+=0.3")
-            // 5. Start loading game in background immediately
-                    .add(() => {
-                        console.log('📦 Starting game preload in background...');
-
-                        // Listen for loading progress from game
-                        window.addEventListener('message', (event) => {
-                            if (event.data.type === 'GAME_LOAD_PROGRESS') {
-                                const progress = event.data.progress;
-                                console.log(`📦 Game loading: ${progress}%`);
-
-                                // Update loading bar
-                                document.getElementById('loader-bar-fill').style.width = progress + '%';
-                                document.getElementById('loader-percentage').textContent = progress + '%';
-
-                                // Update loading text
-                                const loaderText = document.getElementById('loader-text');
-                                if (progress < 100) {
-                                    loaderText.textContent = `LOADING_ASSETS...${progress}%`;
-                                } else {
-                                    loaderText.textContent = 'READY_TO_START...';
-                                }
-                            } else if (event.data.type === 'GAME_FULLY_LOADED') {
-                                console.log('✅ Game fully loaded - closing loading screen');
-                                // Signal to close loading screen
-                                window._gameFullyLoaded = true;
-
-                                // Update to 100%
-                                document.getElementById('loader-bar-fill').style.width = '100%';
-                                document.getElementById('loader-percentage').textContent = '100%';
-                                document.getElementById('loader-text').textContent = 'READY_TO_START...';
-
-                                // Wait 1 second then navigate
-                                setTimeout(() => {
-                                    // Stop intro music and clear session storage before navigating to game
-                                    const introMusic = document.getElementById('intro-music');
-                                    if (introMusic) {
-                                        introMusic.pause();
-                                    }
-                                    sessionStorage.removeItem('introMusicPlaying');
-                                    sessionStorage.removeItem('introMusicTime');
-
-                                    window.location.href = 'game.html?level=1';
-                                }, 1000);
-                            }
-                        });
-
-                        // Preload game.html in hidden iframe to start loading assets
-                        const preloadFrame = document.createElement('iframe');
-                        preloadFrame.src = 'game.html?level=1&preload=true';
-                        preloadFrame.style.display = 'none';
-                        preloadFrame.style.position = 'absolute';
-                        preloadFrame.style.left = '-9999px';
-                        document.body.appendChild(preloadFrame);
-                        window._gamePreloadFrame = preloadFrame;
-                    }, "<")
-            // Loading screen will close automatically when game signals it's ready (see message listener above)
-        }
+        // --- LOADING SCREEN REMOVED ---
+        // Loading animation now plays directly on game.html while assets load
     </script>
 </body>
 </html>

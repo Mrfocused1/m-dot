@@ -6,6 +6,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>Merkle Man | Mission In Progress</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+
     <style>
         * {
             margin: 0;
@@ -35,9 +39,168 @@
             pointer-events: none;
             z-index: 10;
         }
+
+        /* INTRO LOADING ANIMATION */
+        #intro-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: flex;
+            overflow: hidden;
+            font-family: 'Orbitron', sans-serif;
+            background: #000;
+            user-select: none;
+        }
+
+        #intro-loader-left {
+            width: 50%;
+            height: 100%;
+            background: #0a0b10;
+            border-right: 4px solid #00ff41;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            justify-content: center;
+            padding-right: 2.5rem;
+            position: relative;
+            transform: translateX(-100%);
+            z-index: 10;
+        }
+
+        #intro-loader-right {
+            width: 50%;
+            height: 100%;
+            background: #1a0505;
+            border-left: 4px solid #dc2626;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            padding-left: 2.5rem;
+            position: relative;
+            transform: translateX(100%);
+            z-index: 10;
+        }
+
+        #intro-vs {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            z-index: 20;
+            opacity: 0;
+        }
+
+        #intro-vs-text {
+            font-size: 9rem;
+            font-weight: 900;
+            font-style: italic;
+            background: linear-gradient(to bottom, #fde047, #eab308, #ca8a04);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 30px rgba(234, 179, 8, 0.8));
+            -webkit-text-stroke: 2px white;
+        }
+
+        #intro-bar-container {
+            position: absolute;
+            bottom: 6rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 66.666667%;
+            max-width: 42rem;
+            z-index: 20;
+            opacity: 0;
+        }
+
+        #intro-bar {
+            height: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+
+        #intro-bar-fill {
+            height: 100%;
+            background: linear-gradient(to right, #00ff41, #22c55e, #00ff41);
+            border-radius: 9999px;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        #intro-percentage {
+            position: absolute;
+            top: -1.5rem;
+            left: 0;
+            color: #00ff41;
+            font-family: monospace;
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+        }
+
+        #intro-text {
+            position: absolute;
+            bottom: 2.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-family: monospace;
+            font-size: 0.875rem;
+            letter-spacing: 0.5em;
+            z-index: 20;
+            opacity: 0;
+        }
+
+        @media (max-width: 768px) {
+            #intro-vs-text {
+                font-size: 5rem;
+            }
+            #intro-loader-left, #intro-loader-right {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- INTRO LOADING ANIMATION (Street Fighter Style) -->
+    <div id="intro-loader">
+        <!-- Left Side (Hero) -->
+        <div id="intro-loader-left">
+            <div style="color: #00ff41; font-size: 3rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em;">MERKLE</div>
+            <div style="color: white; font-size: 2.25rem; font-weight: 700; text-transform: uppercase;">Man</div>
+            <div style="margin-top: 1rem; padding: 0.25rem 1rem; background: #00ff41; color: black; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em;">Player 1</div>
+        </div>
+
+        <!-- Right Side (Villain) -->
+        <div id="intro-loader-right">
+            <div style="color: #ef4444; font-size: 3rem; font-weight: 900; font-style: italic; letter-spacing: -0.05em;">SOUND</div>
+            <div style="color: white; font-size: 2.25rem; font-weight: 700; text-transform: uppercase;">BOY</div>
+            <div style="margin-top: 1rem; padding: 0.25rem 1rem; background: #dc2626; color: white; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em;">Challenger</div>
+        </div>
+
+        <!-- Center VS Logo -->
+        <div id="intro-vs">
+            <div id="intro-vs-text">VS</div>
+        </div>
+
+        <!-- Loading Bar -->
+        <div id="intro-bar-container">
+            <div style="position: relative;">
+                <div id="intro-bar">
+                    <div id="intro-bar-fill"></div>
+                </div>
+                <div id="intro-percentage">0%</div>
+            </div>
+        </div>
+
+        <!-- Loading Text -->
+        <div id="intro-text">LOADING...</div>
+    </div>
+
     <div id="ui-overlay"></div>
 
     <!-- Background Music -->
