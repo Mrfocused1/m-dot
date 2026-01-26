@@ -839,7 +839,7 @@ let skyDome = null;
 const SKY_DOME_CONFIG = {
     enabled: true,              // Enable/disable sky dome
     rotationSpeed: 0.001,       // Slow rotation (radians per frame) - increased for visibility
-    scale: 800,                 // Size of dome (HUGE - must be bigger than camera far plane distance)
+    scale: 200,                 // Size of dome (optimized for texture clarity)
     renderOrder: -999           // Render first (behind everything else)
 };
 
@@ -1923,8 +1923,16 @@ const PlayerController = {
             GameState.stageFrozen = false; // Unfreeze stage NOW (after "Got em!" text)
             // CRITICAL FIX: Restore game speed from saved value or default
             GameState.gameSpeed = this.savedGameSpeed || GAME_SPEED;
+
+            // CRITICAL FIX: Reset Input system to prevent frozen controls
+            Input.touchActive = false;
+            Input.inputProcessed = false;
+            Input.touchSide = null;
+            Input.wasSwipe = false;
+
             console.log('⚡ Game speed restored:', GameState.gameSpeed);
             console.log('▶️ Stage movement resumed (after "Got em!" text)');
+            console.log('🎹 Input system reset');
             console.log('🎬 FORCED state reset: isThrowing=false, hasItem=false, isPickingUp=false, gameSpeed=', GameState.gameSpeed);
 
             // Force player back to run animation
@@ -4363,34 +4371,40 @@ const EnvironmentManager = {
                             child.material.emissiveIntensity = 2.0;
                         }
 
-                        // FIX PIXELATION: Improve texture quality with anisotropic filtering
-                        if (child.material.emissiveMap) {
-                            const texture = child.material.emissiveMap;
+                        // FIX BLURRINESS: Improve texture quality with best filtering settings
+                        const applyTextureEnhancements = (texture) => {
+                            if (!texture) return;
 
-                            // Enable maximum anisotropic filtering (reduces pixelation)
+                            // Enable maximum anisotropic filtering (reduces blur at angles)
                             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-                            // Use best texture filtering
+                            // Use BEST texture filtering for sharpness
+                            // LinearMipMapLinearFilter = trilinear filtering (smoothest)
                             texture.minFilter = THREE.LinearMipMapLinearFilter;
                             texture.magFilter = THREE.LinearFilter;
 
-                            // Generate mipmaps for smoother scaling
+                            // Generate mipmaps for better quality at different distances
                             texture.generateMipmaps = true;
 
+                            // Ensure texture wraps properly (no edge artifacts)
+                            texture.wrapS = THREE.RepeatWrapping;
+                            texture.wrapT = THREE.RepeatWrapping;
+
+                            // Force texture update
                             texture.needsUpdate = true;
 
-                            console.log('     Enhanced texture: anisotropy =', texture.anisotropy);
+                            console.log('     Enhanced texture: anisotropy =', texture.anisotropy, 'filter =', texture.minFilter);
+                        };
+
+                        // Apply to emissive map (globe texture is usually here)
+                        if (child.material.emissiveMap) {
+                            applyTextureEnhancements(child.material.emissiveMap);
                         }
 
                         // Also improve any other texture maps
-                        ['map', 'normalMap', 'roughnessMap', 'metalnessMap'].forEach(mapName => {
+                        ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'aoMap'].forEach(mapName => {
                             if (child.material[mapName]) {
-                                const texture = child.material[mapName];
-                                texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                                texture.minFilter = THREE.LinearMipMapLinearFilter;
-                                texture.magFilter = THREE.LinearFilter;
-                                texture.generateMipmaps = true;
-                                texture.needsUpdate = true;
+                                applyTextureEnhancements(child.material[mapName]);
                             }
                         });
 
