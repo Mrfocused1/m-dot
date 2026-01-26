@@ -1073,6 +1073,22 @@ const Input = {
         this.touchStartTime = Date.now();
         this.wasSwipe = false; // Reset swipe flag on new touch
 
+        // CRITICAL FIX: Auto-recovery if touchend doesn't fire (mobile browser bug)
+        // Clear any existing timeout first
+        if (this.touchResetTimeout) {
+            clearTimeout(this.touchResetTimeout);
+        }
+
+        // Failsafe: Auto-clear touch state after 3 seconds
+        this.touchResetTimeout = setTimeout(() => {
+            if (this.touchActive) {
+                console.warn('⚠️ AUTO-RECOVERY: Touch stuck for 3+ seconds, force clearing');
+                this.touchActive = false;
+                this.inputProcessed = false;
+                this.wasSwipe = false;
+            }
+        }, 3000);
+
         console.log('Touch START at:', this.touchStartX, this.touchStartY);
     },
 
@@ -1199,6 +1215,12 @@ const Input = {
 
         e.preventDefault();
         e.stopPropagation();
+
+        // CRITICAL FIX: Clear the auto-recovery timeout since touch ended normally
+        if (this.touchResetTimeout) {
+            clearTimeout(this.touchResetTimeout);
+            this.touchResetTimeout = null;
+        }
 
         const touchDuration = Date.now() - this.touchStartTime;
         const touch = e.changedTouches[0];
@@ -1561,10 +1583,21 @@ const PlayerController = {
     },
 
     startThrow() {
+        // CRITICAL FIX: Force-clear pickup state to prevent state conflicts
+        if (this.isPickingUp) {
+            console.warn('⚠️ FORCE CLEAR: isPickingUp was true when starting throw');
+            this.isPickingUp = false;
+            if (this.pickupTimeout) {
+                clearTimeout(this.pickupTimeout);
+                this.pickupTimeout = null;
+            }
+        }
+
         if (!playerMixer || !playerAnimations.throw || !this.hasItem || this.isThrowing) return;
 
         console.log('🎯 Throw started!');
         this.isThrowing = true;
+        this.hasItem = false; // CRITICAL: Clear immediately, don't wait for finishThrow
 
         // Clear any existing throw timeout
         if (this.throwTimeout) {
@@ -7803,11 +7836,37 @@ function animate() {
     const delta = rawDelta * GameState.timeScale; // Apply slow motion
 
     // EMERGENCY SAFETY CHECK: Detect and fix stuck gameSpeed
-    // If gameSpeed is 0 but we're not in a throwing state, something went wrong
-    if (GameState.gameSpeed === 0 && !PlayerController.isThrowing && !GameState.stageFrozen) {
-        console.error('🚨 EMERGENCY: gameSpeed stuck at 0 outside of throw/freeze state! Auto-recovering...');
-        GameState.gameSpeed = GAME_SPEED;
-        console.log('⚡ EMERGENCY: Restored gameSpeed to', GAME_SPEED);
+    // Track when gameSpeed was set to 0
+    if (GameState.gameSpeed === 0) {
+        if (!GameState.gameSpeedZeroTime) {
+            GameState.gameSpeedZeroTime = Date.now();
+        }
+
+        const timeStuck = Date.now() - GameState.gameSpeedZeroTime;
+
+        // If gameSpeed 0 but not throwing/frozen, recover immediately
+        if (!PlayerController.isThrowing && !GameState.stageFrozen) {
+            console.error('🚨 EMERGENCY: gameSpeed stuck at 0 outside of throw/freeze state! Auto-recovering...');
+            GameState.gameSpeed = GAME_SPEED;
+            GameState.gameSpeedZeroTime = null;
+            console.log('⚡ EMERGENCY: Restored gameSpeed to', GAME_SPEED);
+        }
+        // If stuck for more than 10 seconds even while "throwing", force recovery
+        else if (timeStuck > 10000) {
+            console.error('🚨 EMERGENCY: gameSpeed stuck at 0 for 10+ seconds! Forcing recovery...');
+            console.error('   isThrowing:', PlayerController.isThrowing, 'stageFrozen:', GameState.stageFrozen);
+            GameState.gameSpeed = GAME_SPEED;
+            GameState.gameSpeedZeroTime = null;
+            // Also force clear stuck states
+            PlayerController.isThrowing = false;
+            PlayerController.hasItem = false;
+            PlayerController.isPickingUp = false;
+            GameState.stageFrozen = false;
+            console.log('⚡ EMERGENCY: Forced full state reset');
+        }
+    } else {
+        // gameSpeed is not 0, clear the timer
+        GameState.gameSpeedZeroTime = null;
     }
 
     // Always update animations so they loop smoothly regardless of game state
