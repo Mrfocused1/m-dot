@@ -2442,6 +2442,7 @@ const MazeController = {
 
 const obstacles = [];
 const obstaclePool = [];
+let barrierModelTemplate = null; // 3D model template for concrete barriers
 
 class Obstacle {
     constructor() {
@@ -2454,10 +2455,45 @@ class Obstacle {
         this.lane = 0;
     }
 
+    // Replace placeholder mesh with 3D model
+    replaceWithModel(modelTemplate) {
+        if (!modelTemplate) return;
+
+        const wasActive = this.active;
+        const currentLane = this.lane;
+        const currentZ = this.mesh.position.z;
+
+        // Remove old placeholder mesh if it's in the scene
+        if (this.active) {
+            scene.remove(this.mesh);
+        }
+
+        // Clone the 3D model
+        this.mesh = modelTemplate.clone();
+
+        // Enable shadows on all children
+        this.mesh.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        // Restore state if it was active
+        if (wasActive) {
+            this.lane = currentLane;
+            this.active = true;
+            this.mesh.position.x = LANE_POSITIONS[this.lane];
+            this.mesh.position.y = 0; // On the ground
+            this.mesh.position.z = currentZ;
+            scene.add(this.mesh);
+        }
+    }
+
     activate(lane, zPosition) {
         this.lane = lane;
         this.mesh.position.x = LANE_POSITIONS[lane];
-        this.mesh.position.y = 1;
+        this.mesh.position.y = barrierModelTemplate ? 0 : 1; // 3D models sit on ground, boxes hover
         this.mesh.position.z = zPosition;
         this.active = true;
         scene.add(this.mesh);
@@ -2485,9 +2521,65 @@ const ObstacleManager = {
     spawnInterval: 1.5,
 
     init() {
+        // Create obstacle pool with placeholder meshes
         for (let i = 0; i < 20; i++) {
             obstaclePool.push(new Obstacle());
         }
+
+        // Load 3D barrier model
+        this.loadBarrierModel();
+    },
+
+    loadBarrierModel() {
+        console.log('Loading concrete barrier model...');
+
+        const loader = sharedGLTFLoader;
+
+        loader.load(
+            'concrete_road_barrier_photoscanned.glb',
+            // onLoad
+            (gltf) => {
+                barrierModelTemplate = gltf.scene;
+
+                console.log('✅ Concrete barrier model loaded');
+
+                // Calculate bounding box to understand size
+                const box = new THREE.Box3().setFromObject(barrierModelTemplate);
+                const size = box.getSize(new THREE.Vector3());
+                console.log('Barrier size:', {
+                    x: size.x.toFixed(2),
+                    y: size.y.toFixed(2),
+                    z: size.z.toFixed(2)
+                });
+
+                // Adjust scale if needed (barriers are usually about 1m tall)
+                const targetHeight = 1.2; // Desired height in game units
+                const currentHeight = size.y;
+                const scale = targetHeight / currentHeight;
+                barrierModelTemplate.scale.set(scale, scale, scale);
+
+                console.log('Barrier scaled by:', scale.toFixed(2));
+
+                // Replace all existing obstacles with 3D models
+                obstaclePool.forEach(obstacle => {
+                    obstacle.replaceWithModel(barrierModelTemplate);
+                });
+
+                console.log('✅ All obstacles updated with 3D barrier models');
+            },
+            // onProgress
+            (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percent = (xhr.loaded / xhr.total * 100).toFixed(2);
+                    console.log('Barrier loading: ' + percent + '%');
+                }
+            },
+            // onError
+            (error) => {
+                console.error('❌ Error loading barrier model:', error);
+                console.log('Using fallback green cubes');
+            }
+        );
     },
 
     spawn() {
