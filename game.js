@@ -788,6 +788,15 @@ stage2LoadingManager.onLoad = () => {
         }
 
         Stage2LoadingScreen.complete();
+
+        // Initialize horizontal controls AFTER loading screen fades out
+        // Loading screen takes 1000ms min + 500ms fade + 500ms remove = ~2000ms total
+        if (GameState.isHorizontalMode) {
+            setTimeout(() => {
+                console.log('[Stage2] Initializing horizontal controls after loading complete');
+                HorizontalControls.init();
+            }, 2000);
+        }
     }, 800); // Increased delay to allow warmup to complete
 };
 const stage2GLTFLoader = new GLTFLoader(stage2LoadingManager);
@@ -6919,13 +6928,8 @@ function startShootingGame() {
     // Load officer character
     loadOfficerCharacter();
 
-    // Initialize horizontal controls if in horizontal mode
-    if (GameState.isHorizontalMode) {
-        // Delay initialization slightly to ensure DOM is ready
-        setTimeout(() => {
-            HorizontalControls.init();
-        }, 100);
-    }
+    // Don't initialize horizontal controls here - wait for loading to complete
+    // They will be initialized in stage2LoadingManager.onLoad
 
     // Don't update UI yet - wait for Stage 2 loading to complete
     // UI.updateUI();
