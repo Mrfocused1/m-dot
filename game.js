@@ -1623,8 +1623,13 @@ const PlayerController = {
         this.isThrowing = false;
         this.hasItem = false;
 
-        // Restore game speed
-        GameState.gameSpeed = this.savedGameSpeed;
+        // Restore game speed (CRITICAL FIX: never restore to 0)
+        if (this.savedGameSpeed > 0) {
+            GameState.gameSpeed = this.savedGameSpeed;
+        } else {
+            console.warn('⚠️ savedGameSpeed was 0, using GAME_SPEED default');
+            GameState.gameSpeed = GAME_SPEED;
+        }
         GameState.timeScale = 1.0; // Ensure normal time scale
 
         // Stop enemy from running away
@@ -1768,8 +1773,11 @@ const PlayerController = {
                         setTimeout(() => {
                             GameState.timeScale = 1.0; // Restore normal speed
                             GameState.stageFrozen = false; // Unfreeze stage
+                            // CRITICAL FIX: Restore game speed here to prevent savedGameSpeed being 0 on next throw
+                            GameState.gameSpeed = this.savedGameSpeed || GAME_SPEED;
                             console.log('🎬 Normal speed restored');
                             console.log('▶️ Stage movement resumed');
+                            console.log('⚡ Game speed restored:', GameState.gameSpeed);
 
                             this.isFollowingEnemyReaction = false; // End enemy close-up
 
@@ -1915,7 +1923,13 @@ const PlayerController = {
             this.hasItem = false;
             this.isPickingUp = false;
             GameState.timeScale = 1.0;
-            console.log('🎬 FORCED state reset: isThrowing=false, hasItem=false, isPickingUp=false');
+            GameState.stageFrozen = false;
+            // CRITICAL FIX: Force game speed to default if it's stuck at 0
+            if (GameState.gameSpeed === 0) {
+                GameState.gameSpeed = GAME_SPEED;
+                console.log('⚡ EMERGENCY: Game speed was 0, forced to', GAME_SPEED);
+            }
+            console.log('🎬 FORCED state reset: isThrowing=false, hasItem=false, isPickingUp=false, gameSpeed=', GameState.gameSpeed);
 
             // Force player back to run animation
             this.switchToRunAnimation();
