@@ -2572,11 +2572,14 @@ const EnvironmentManager = {
         // Load 3D road model first
         this.loadRoadModel();
 
-        // Add lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // Set bright background for Level 1
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+
+        // Add bright lights for daytime scene
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); // Increased from 0.6
         scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5); // Increased from 0.8
         directionalLight.position.set(10, 20, 10);
         directionalLight.castShadow = true;
         directionalLight.shadow.camera.left = -20;
@@ -2585,8 +2588,8 @@ const EnvironmentManager = {
         directionalLight.shadow.camera.bottom = -20;
         scene.add(directionalLight);
 
-        // Fog for depth
-        scene.fog = new THREE.Fog(0x1a1a2e, 30, 100);
+        // Light fog for depth (sky blue to match background)
+        scene.fog = new THREE.Fog(0x87CEEB, 50, 150); // Lighter and farther
     },
 
     loadRoadModel() {
@@ -6006,7 +6009,7 @@ function init() {
 
     // Create scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a2e);
+    scene.background = new THREE.Color(0x87CEEB); // Sky blue - bright default
 
     // RALPH: Expose scene for debugging
     window.scene = scene;
