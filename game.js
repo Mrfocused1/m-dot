@@ -1255,6 +1255,7 @@ const PlayerController = {
     isPickingUp: false,
     hasItem: false,
     isThrowing: false,
+    savedGameSpeed: 0,
 
     init() {
         this.currentLane = 1;
@@ -1267,6 +1268,7 @@ const PlayerController = {
         this.isPickingUp = false;
         this.hasItem = false;
         this.isThrowing = false;
+        this.savedGameSpeed = 0;
     },
 
     update(dt) {
@@ -1406,6 +1408,13 @@ const PlayerController = {
         console.log('🎯 Throw started!');
         this.isThrowing = true;
 
+        // Stop player movement during throw
+        this.savedGameSpeed = GameState.gameSpeed;
+        GameState.gameSpeed = 0;
+
+        // Enemy runs away during throw
+        EnemyController.isRunningAway = true;
+
         // If throw interrupts a jump, clear jumping state so movement isn't blocked
         if (this.isJumping) {
             console.log('🎯 Throw interrupted jump - clearing jump state');
@@ -1423,6 +1432,9 @@ const PlayerController = {
         playerAnimations.throw.fadeIn(0.1);
         playerAnimations.throw.play();
         currentPlayerAnimation = 'throw';
+
+        // Create and throw the projectile
+        this.createThrownItem();
     },
 
     finishThrow() {
@@ -1430,8 +1442,60 @@ const PlayerController = {
         this.isThrowing = false;
         this.hasItem = false;
 
+        // Restore game speed
+        GameState.gameSpeed = this.savedGameSpeed;
+
+        // Stop enemy from running away
+        EnemyController.isRunningAway = false;
+
         // Return to normal run animation
         this.switchToRunAnimation();
+    },
+
+    createThrownItem() {
+        if (!playerModel) return;
+
+        // Create a golden sphere as the thrown item
+        const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xffd700,
+            emissive: 0xffd700,
+            emissiveIntensity: 0.5,
+            metalness: 0.8,
+            roughness: 0.2
+        });
+        const thrownItem = new THREE.Mesh(geometry, material);
+
+        // Position at player's hand
+        thrownItem.position.copy(playerModel.position);
+        thrownItem.position.y += 2; // Slightly above player
+        scene.add(thrownItem);
+
+        // Animate the throw
+        const throwSpeed = 40; // Speed of thrown item
+        const throwStartZ = thrownItem.position.z;
+        const throwDistance = 50; // Distance to travel
+
+        const animateThrow = () => {
+            if (!thrownItem.parent) return; // Item was removed
+
+            // Move forward
+            thrownItem.position.z -= throwSpeed * 0.016; // Approximate 60fps
+
+            // Rotate for effect
+            thrownItem.rotation.x += 0.2;
+            thrownItem.rotation.y += 0.15;
+
+            // Check if item has traveled far enough
+            if (Math.abs(thrownItem.position.z - throwStartZ) > throwDistance) {
+                scene.remove(thrownItem);
+                return;
+            }
+
+            requestAnimationFrame(animateThrow);
+        };
+
+        animateThrow();
     },
 
 
@@ -1476,11 +1540,14 @@ const EnemyController = {
     laneChangeTimer: 0,
     laneChangeInterval: 2,
     distanceFromPlayer: -15, // Behind player in chase mode
+    isRunningAway: false, // When true, enemy runs away during throw
+    runAwaySpeed: 20, // Speed when running away
 
     init() {
         this.currentLane = 1;
         this.targetLane = 1;
         this.laneChangeTimer = 0;
+        this.isRunningAway = false;
     },
 
     update(dt) {
@@ -1511,8 +1578,13 @@ const EnemyController = {
             }
 
             // Position behind/ahead of player based on mode
-            const targetZ = GameState.currentMode === 'CHASE' ? this.distanceFromPlayer : -this.distanceFromPlayer;
-            enemyModel.position.z = targetZ;
+            if (this.isRunningAway) {
+                // Enemy runs away during throw
+                enemyModel.position.z -= this.runAwaySpeed * dt;
+            } else {
+                const targetZ = GameState.currentMode === 'CHASE' ? this.distanceFromPlayer : -this.distanceFromPlayer;
+                enemyModel.position.z = targetZ;
+            }
         }
     }
 };
