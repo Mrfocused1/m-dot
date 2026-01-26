@@ -2514,8 +2514,8 @@ class Obstacle {
     }
 
     activate(lane, zPosition, useRandomModel = true) {
-        // If we have multiple obstacle models loaded, pick a random one
-        if (useRandomModel && obstacleModels.length > 0) {
+        // ONLY assign a model if this obstacle doesn't have one yet (first time use)
+        if (useRandomModel && obstacleModels.length > 0 && this.type === null) {
             const randomIndex = Math.floor(Math.random() * obstacleModels.length);
             const randomModel = obstacleModels[randomIndex];
 
@@ -2533,6 +2533,12 @@ class Obstacle {
         this.mesh.position.y = obstacleModels.length > 0 ? 0 : 1; // 3D models sit on ground, boxes hover
         this.mesh.position.z = zPosition;
         this.active = true;
+
+        // Reset horizontal direction for vehicles each time they spawn
+        if (this.canMoveHorizontally) {
+            this.horizontalDirection = Math.random() < 0.5 ? -1 : 1;
+        }
+
         scene.add(this.mesh);
     }
 
