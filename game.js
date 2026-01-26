@@ -1123,11 +1123,14 @@ const Input = {
         const deltaY = Math.abs(touch.clientY - this.touchStartY);
         const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        // TAP detection: short duration + minimal movement = tap to shoot
+        // TAP detection: short duration + minimal movement = tap to shoot/throw
         if (touchDuration < 200 && totalDistance < 20) {
             if (GameState.selectedLevel === 'shoot' && GameState.screen === 'PLAYING') {
                 console.log('📱 TAP detected - SHOOT!');
                 MazeController.shoot();
+            } else if (GameState.selectedLevel === 'chase' && GameState.screen === 'PLAYING' && PlayerController.hasItem) {
+                console.log('📱 TAP detected - THROW!');
+                PlayerController.startThrow();
             }
         }
 
@@ -1181,6 +1184,16 @@ const Input = {
             return;
         }
 
+        // Throw with spacebar when holding item (Level 1)
+        if (e.key === ' ' || e.key === 'Spacebar') {
+            if (GameState.selectedLevel === 'chase' && GameState.screen === 'PLAYING' && PlayerController.hasItem) {
+                e.preventDefault();
+                console.log('⌨️ SPACEBAR - THROW!');
+                PlayerController.startThrow();
+            }
+            return;
+        }
+
         if (e.key === 'ArrowLeft') {
             this.touchSide = 'LEFT';
             this.touchActive = true;
@@ -1207,6 +1220,8 @@ const PlayerController = {
     isJumping: false,
     jumpStartY: 1.0,
     isPickingUp: false,
+    hasItem: false,
+    isThrowing: false,
 
     init() {
         this.currentLane = 1;
@@ -1217,6 +1232,8 @@ const PlayerController = {
         this.isJumping = false;
         this.jumpStartY = 1.0;
         this.isPickingUp = false;
+        this.hasItem = false;
+        this.isThrowing = false;
     },
 
     update(dt) {
@@ -1340,8 +1357,37 @@ const PlayerController = {
     finishPickup() {
         console.log('✨ Pickup finished!');
         this.isPickingUp = false;
+        this.hasItem = true;
 
-        // Return to run animation
+        // Switch to holding run animation
+        this.switchToHoldingRunAnimation();
+    },
+
+    startThrow() {
+        if (!playerMixer || !playerAnimations.throw || !this.hasItem || this.isThrowing) return;
+
+        console.log('🎯 Throw started!');
+        this.isThrowing = true;
+
+        // Fade out current animation
+        const currentAnim = playerAnimations[currentPlayerAnimation];
+        if (currentAnim) {
+            currentAnim.fadeOut(0.1);
+        }
+
+        // Play throw animation
+        playerAnimations.throw.reset();
+        playerAnimations.throw.fadeIn(0.1);
+        playerAnimations.throw.play();
+        currentPlayerAnimation = 'throw';
+    },
+
+    finishThrow() {
+        console.log('🎯 Throw finished!');
+        this.isThrowing = false;
+        this.hasItem = false;
+
+        // Return to normal run animation
         this.switchToRunAnimation();
     },
 
@@ -1376,6 +1422,21 @@ const PlayerController = {
         playerAnimations.run.fadeIn(0.2);
         playerAnimations.run.play();
         currentPlayerAnimation = 'run';
+    },
+
+    switchToHoldingRunAnimation() {
+        if (!playerMixer || !playerAnimations.runHolding) return;
+
+        const currentAnim = playerAnimations[currentPlayerAnimation];
+        if (currentAnim) {
+            currentAnim.fadeOut(0.2);
+        }
+
+        playerAnimations.runHolding.reset();
+        playerAnimations.runHolding.fadeIn(0.2);
+        playerAnimations.runHolding.play();
+        currentPlayerAnimation = 'runHolding';
+        console.log('Switched to holding run animation');
     }
 };
 
@@ -3280,6 +3341,8 @@ function loadPlayerCharacter() {
         loadPlayerTurnAnimation();
         loadPlayerJumpAnimation();
         loadPlayerPickupAnimation();
+        loadPlayerHoldingRunAnimation();
+        loadPlayerThrowAnimation();
     }, undefined, (error) => {
         console.error('Error loading player FBX:', error);
         createFallbackPlayer();
@@ -3371,6 +3434,49 @@ function loadPlayerPickupAnimation() {
         }
     }, undefined, (error) => {
         console.warn('Pickup animation not loaded:', error);
+    });
+}
+
+function loadPlayerHoldingRunAnimation() {
+    const loader = stage1FBXLoader;
+
+    loader.load('jammer_run_holding.fbx', (fbx) => {
+        if (fbx.animations && fbx.animations.length > 0) {
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER RUN HOLDING');
+
+            playerAnimations.runHolding = playerMixer.clipAction(clip);
+            playerAnimations.runHolding.setLoop(THREE.LoopRepeat, Infinity);
+            playerAnimations.runHolding.timeScale = 1.0;
+
+            console.log('Run holding animation loaded');
+        }
+    }, undefined, (error) => {
+        console.warn('Run holding animation not loaded:', error);
+    });
+}
+
+function loadPlayerThrowAnimation() {
+    const loader = stage1FBXLoader;
+
+    loader.load('jammer_throw.fbx', (fbx) => {
+        if (fbx.animations && fbx.animations.length > 0) {
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER THROW');
+
+            playerAnimations.throw = playerMixer.clipAction(clip);
+            playerAnimations.throw.setLoop(THREE.LoopOnce);
+            playerAnimations.throw.clampWhenFinished = false;
+
+            // When throw animation finishes, return to normal run
+            playerMixer.addEventListener('finished', (e) => {
+                if (e.action === playerAnimations.throw) {
+                    PlayerController.finishThrow();
+                }
+            });
+
+            console.log('Throw animation loaded');
+        }
+    }, undefined, (error) => {
+        console.warn('Throw animation not loaded:', error);
     });
 }
 
