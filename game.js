@@ -545,83 +545,7 @@ const LoadingScreen = {
 };
 
 // STAGE 2 LOADING SCREEN (Level-specific)
-const Stage1LoadingScreen = {
-    overlay: null,
-    isComplete: false,
-    startTime: 0,
-    minDisplayTime: 1000, // Minimum 1 second display time
-
-    show() {
-        this.isComplete = false;
-        this.startTime = Date.now();
-
-        // Create loading screen overlay
-        this.overlay = document.createElement('div');
-        this.overlay.id = 'stage1-loading-screen';
-        this.overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            background: linear-gradient(180deg, #1a237e 0%, #0d47a1 100%);
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-        `;
-        this.overlay.innerHTML = `
-            <div style="text-align: center;">
-                <div style="font-size: 48px; margin-bottom: 15px; color: #4fc3f7;">🏃 STAGE 1</div>
-                <div style="font-size: 20px; margin-bottom: 30px; color: #90caf9;">Loading Jammer...</div>
-                <div style="width: 300px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; margin-bottom: 20px;">
-                    <div id="stage1-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #4fc3f7, #2196f3); transition: width 0.3s;"></div>
-                </div>
-                <div id="stage1-loading-text" style="font-size: 18px; color: #90caf9;">Loading... 0%</div>
-            </div>
-        `;
-        document.body.appendChild(this.overlay);
-        console.log('Stage 1 loading screen shown');
-    },
-
-    updateProgress(percentage) {
-        const bar = document.getElementById('stage1-loading-bar');
-        const text = document.getElementById('stage1-loading-text');
-        if (bar) bar.style.width = percentage + '%';
-        if (text) text.textContent = `Loading... ${percentage}%`;
-        console.log(`Stage 1 loading progress: ${percentage}%`);
-    },
-
-    complete() {
-        if (this.isComplete) return;
-        this.isComplete = true;
-
-        // Calculate how long we've been displaying
-        const elapsed = Date.now() - this.startTime;
-        const remainingTime = Math.max(0, this.minDisplayTime - elapsed);
-
-        console.log(`Stage 1 loading complete. Elapsed: ${elapsed}ms, Remaining: ${remainingTime}ms`);
-
-        // Wait for minimum display time before fading out
-        setTimeout(() => {
-            if (!this.overlay) return;
-
-            // Fade out loading screen
-            this.overlay.style.transition = 'opacity 0.5s';
-            this.overlay.style.opacity = '0';
-
-            setTimeout(() => {
-                if (this.overlay && this.overlay.parentNode) {
-                    this.overlay.parentNode.removeChild(this.overlay);
-                    this.overlay = null;
-                }
-            }, 500);
-        }, remainingTime);
-    }
-};
+// Stage 1 loading screen removed - using select-stage.html loading screen instead
 
 const Stage2LoadingScreen = {
     overlay: null,
@@ -728,39 +652,9 @@ const sharedGLTFLoader = new GLTFLoader(loadingManager);
 const sharedFBXLoader = new FBXLoader(loadingManager);
 
 // STAGE 1 LOADER WITH SEPARATE PROGRESS TRACKING
-const stage1LoadingManager = new THREE.LoadingManager();
-let stage1AssetsLoaded = false;
-
-stage1LoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-    const progress = Math.round((itemsLoaded / itemsTotal) * 100);
-    console.log(`🔄 Stage 1 Loading: ${progress}% (${itemsLoaded}/${itemsTotal})`);
-    Stage1LoadingScreen.updateProgress(progress);
-};
-stage1LoadingManager.onLoad = () => {
-    console.log('✅ All Stage 1 assets loaded!');
-    stage1AssetsLoaded = true;
-
-    // Complete Stage 1 loading screen
-    setTimeout(() => {
-        // Update UI BEFORE fading out loading screen so playing screen is ready underneath
-        if (GameState.selectedLevel === 'chase') {
-            UI.updateUI();
-        }
-
-        Stage1LoadingScreen.complete();
-
-        // Start the game AFTER loading screen fades out (1000ms minimum + 500ms fade)
-        setTimeout(() => {
-            console.log('🎮 Starting gameplay after loading complete');
-            GameState.isRunning = true;
-        }, 1500);
-    }, 300);
-};
-stage1LoadingManager.onError = (url) => {
-    console.error('❌ Stage 1 loading error:', url);
-};
-const stage1GLTFLoader = new GLTFLoader(stage1LoadingManager);
-const stage1FBXLoader = new FBXLoader(stage1LoadingManager);
+// Stage 1 loading manager removed - characters load directly
+const stage1GLTFLoader = new GLTFLoader();
+const stage1FBXLoader = new FBXLoader();
 
 // STAGE 2 LOADER WITH SEPARATE PROGRESS TRACKING
 const stage2LoadingManager = new THREE.LoadingManager();
@@ -1282,6 +1176,9 @@ const PlayerController = {
     isThrowing: false,
     savedGameSpeed: 0,
     throwTimeout: null,
+    activeThrownItem: null, // Reference to the currently thrown item
+    isFollowingThrowItem: false, // Camera follow state
+    throwCameraTimer: 0, // Timer for camera follow duration
 
     init() {
         this.currentLane = 1;
@@ -1295,6 +1192,9 @@ const PlayerController = {
         this.hasItem = false;
         this.isThrowing = false;
         this.savedGameSpeed = 0;
+        this.activeThrownItem = null;
+        this.isFollowingThrowItem = false;
+        this.throwCameraTimer = 0;
         // Clear any existing throw timeout
         if (this.throwTimeout) {
             clearTimeout(this.throwTimeout);
@@ -1346,6 +1246,16 @@ const PlayerController = {
             if (this.invincibilityTimer <= 0) {
                 this.isInvincible = false;
                 this.invincibilityTimer = 0;
+            }
+        }
+
+        // Update throw camera follow timer
+        if (this.isFollowingThrowItem) {
+            this.throwCameraTimer += dt;
+            // End camera follow after 2 seconds
+            if (this.throwCameraTimer >= 2.0) {
+                console.log('📷 Camera follow timeout (2 seconds reached)');
+                this.endThrowCameraFollow();
             }
         }
     },
@@ -1521,6 +1431,14 @@ const PlayerController = {
             return;
         }
 
+        // If still following throw item, wait until camera follow ends
+        if (this.isFollowingThrowItem) {
+            console.log('🎯 Throw animation finished but camera still following item - delaying cleanup');
+            // Check again in a moment
+            setTimeout(() => this.finishThrow(), 100);
+            return;
+        }
+
         console.log('🎯 Throw finished! Resetting states...');
 
         // Clear the timeout if it exists
@@ -1569,13 +1487,22 @@ const PlayerController = {
         thrownItem.position.y += 2; // Slightly above player
         scene.add(thrownItem);
 
+        // Store reference for camera follow
+        this.activeThrownItem = thrownItem;
+        this.isFollowingThrowItem = true;
+        this.throwCameraTimer = 0;
+
         // Animate the throw
         const throwSpeed = 40; // Speed of thrown item
         const throwStartZ = thrownItem.position.z;
         const throwDistance = 50; // Distance to travel
 
         const animateThrow = () => {
-            if (!thrownItem.parent) return; // Item was removed
+            if (!thrownItem.parent) {
+                // Item was removed - end camera follow
+                this.endThrowCameraFollow();
+                return;
+            }
 
             // Move forward
             thrownItem.position.z -= throwSpeed * 0.016; // Approximate 60fps
@@ -1591,13 +1518,18 @@ const PlayerController = {
                     console.log('🎯 Item hit enemy!');
                     EnemyController.takeDamage();
                     scene.remove(thrownItem);
+                    // End camera follow after hit
+                    this.endThrowCameraFollow();
                     return;
                 }
             }
 
             // Check if item has traveled far enough
             if (Math.abs(thrownItem.position.z - throwStartZ) > throwDistance) {
+                console.log('🎯 Item missed - traveled too far');
                 scene.remove(thrownItem);
+                // End camera follow after miss
+                this.endThrowCameraFollow();
                 return;
             }
 
@@ -1605,6 +1537,13 @@ const PlayerController = {
         };
 
         animateThrow();
+    },
+
+    endThrowCameraFollow() {
+        console.log('📷 Ending throw camera follow');
+        this.isFollowingThrowItem = false;
+        this.activeThrownItem = null;
+        this.throwCameraTimer = 0;
     },
 
 
@@ -3836,6 +3775,15 @@ const EnvironmentManager = {
 // CHARACTER LOADING
 // ============================================================================
 
+// Check if Stage 1 assets are loaded and start game if ready
+function checkStage1AssetsLoaded() {
+    if (playerModel && enemyModel && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
+        console.log('✅ Stage 1 characters loaded, starting game');
+        GameState.isRunning = true;
+        UI.updateUI();
+    }
+}
+
 function loadPlayerCharacter() {
     const loader = stage1FBXLoader;
 
@@ -3873,9 +3821,14 @@ function loadPlayerCharacter() {
         loadPlayerPickupAnimation();
         loadPlayerHoldingRunAnimation();
         loadPlayerThrowAnimation();
+
+        // Check if both characters are loaded to start game
+        checkStage1AssetsLoaded();
     }, undefined, (error) => {
         console.error('Error loading player FBX:', error);
         createFallbackPlayer();
+        // Still check in case enemy is loaded
+        checkStage1AssetsLoaded();
     });
 }
 
@@ -4021,6 +3974,8 @@ function createFallbackPlayer() {
     playerModel.position.set(0, 1.0, 0);
     playerModel.castShadow = true;
     scene.add(playerModel);
+    // Check if both characters are loaded to start game
+    checkStage1AssetsLoaded();
 }
 
 function loadEnemyCharacter() {
@@ -4057,10 +4012,15 @@ function loadEnemyCharacter() {
         }
 
         console.log('Enemy character loaded');
+
+        // Check if both characters are loaded to start game
+        checkStage1AssetsLoaded();
     }, undefined, (error) => {
         console.error('Error loading enemy FBX:', error);
         // Fallback to simple cube
         createFallbackEnemy();
+        // Still check in case player is loaded
+        checkStage1AssetsLoaded();
     });
 }
 
@@ -4071,6 +4031,8 @@ function createFallbackEnemy() {
     enemyModel.position.set(0, 1.0, -15);
     enemyModel.castShadow = true;
     scene.add(enemyModel);
+    // Check if both characters are loaded to start game
+    checkStage1AssetsLoaded();
 }
 
 // ============================================================================
@@ -6867,8 +6829,8 @@ function startGame() {
         GameState.isRunning = true;
         UI.updateUI();
     } else {
-        // Show loading screen and load characters
-        Stage1LoadingScreen.show();
+        // Load characters if needed - game will start when both are loaded
+        console.log('Loading Stage 1 characters...');
 
         // Load Jammer character for Level 1 if not already loaded
         if (!playerModel) {
@@ -6879,17 +6841,8 @@ function startGame() {
             loadEnemyCharacter();
         }
 
-        // Safety timeout: if loading takes more than 10 seconds, force complete
-        setTimeout(() => {
-            if (!stage1AssetsLoaded) {
-                console.warn('⚠️ Stage 1 loading timeout - forcing complete');
-                Stage1LoadingScreen.complete();
-                GameState.isRunning = true;
-                UI.updateUI();
-            }
-        }, 10000);
-
-        // UI will be updated when stage1LoadingManager.onLoad triggers
+        // Characters will load asynchronously
+        // Game will start when both finish loading via checkStage1AssetsLoaded()
     }
 
     console.log('Starting game with level:', GameState.selectedLevel);
@@ -7112,8 +7065,21 @@ function animate() {
             EnvironmentManager.update(delta);
             checkCollisions();
 
-            // Update camera to follow player
-            if (playerModel) {
+            // Update camera to follow player or thrown item
+            if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
+                // Cinematic camera following the thrown item
+                const item = PlayerController.activeThrownItem;
+                const cameraDistance = 5; // Distance behind item
+                const cameraHeight = 3; // Height above item
+
+                camera.position.x = item.position.x;
+                camera.position.y = item.position.y + cameraHeight;
+                camera.position.z = item.position.z + cameraDistance;
+
+                // Look at the item and slightly ahead
+                camera.lookAt(item.position.x, item.position.y, item.position.z - 5);
+            } else if (playerModel) {
+                // Normal camera following player
                 camera.position.x = playerModel.position.x;
                 camera.position.z = playerModel.position.z + 8;
                 camera.lookAt(playerModel.position.x, playerModel.position.y + 1, playerModel.position.z - 5);
