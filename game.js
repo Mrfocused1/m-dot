@@ -1544,7 +1544,7 @@ const PlayerController = {
         const throwLaneX = thrownItem.position.x;
 
         // Animate the throw
-        const throwSpeed = 40; // Speed of thrown item
+        const throwSpeed = 25; // Speed of thrown item (reduced from 40 for better visibility)
         const throwStartZ = thrownItem.position.z;
         const throwDistance = 50; // Distance to travel
 
