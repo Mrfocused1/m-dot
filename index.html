@@ -173,12 +173,9 @@
 
         <div class="container mx-auto px-6 z-10 grid md:grid-cols-2 gap-12 items-center">
             <div class="text-center md:text-left">
-                <!-- Animated Logo SVG -->
+                <!-- Animated Logo -->
                 <div class="w-32 h-32 mx-auto md:mx-0 mb-6 relative">
-                    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full text-merkle-green drop-shadow-[0_0_15px_rgba(0,255,65,0.5)]">
-                        <path id="logo-m" class="path-draw" d="M20 80 V20 L50 50 L80 20 V80 M50 50 V80" />
-                        <circle id="logo-circle" class="path-draw" cx="50" cy="50" r="45" stroke-width="2" />
-                    </svg>
+                    <img id="logo-image" src="merkleman-logo.png" alt="Merkle Man Logo" class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(0,255,65,0.5)] opacity-0" />
                 </div>
 
                 <h1 class="text-5xl md:text-7xl font-display font-black leading-tight mb-4">
@@ -273,9 +270,8 @@
 
             // --- Hero Animation Timeline (Previously global) ---
 
-            // 1. Draw "M" Logo
-            heroTl.to("#logo-m", { strokeDashoffset: 0, duration: 1.5, ease: "power2.inOut" })
-                  .to("#logo-circle", { strokeDashoffset: 0, duration: 1, ease: "power2.out" }, "-=0.5");
+            // 1. Fade in Logo
+            heroTl.to("#logo-image", { opacity: 1, duration: 1, ease: "power2.out" });
 
             // 2. Type Text
             heroTl.to("#hero-title", {
