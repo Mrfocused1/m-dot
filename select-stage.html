@@ -354,8 +354,8 @@
                     .to("#loader", { x: "+=5", y: "+=5", repeat: 5, duration: 0.04, yoyo: true }, "<0.1") // Screen Shake
             // 3. Text Type/Flash
                     .to("#loader-text", { opacity: 1, duration: 0.1, repeat: 3, yoyo: true }, "+=0.2")
-                    // Extended wait time (5 seconds) to allow level assets to load
-                    .to({}, { duration: 5 })
+                    // Extended wait time (11 seconds) to allow level assets to load
+                    .to({}, { duration: 11 })
             // 4. Exit Animation (Curtain Open)
                     .to("#loader-vs", { scale: 0, opacity: 0, duration: 0.3 })
                     .to("#loader-text", { opacity: 0, duration: 0.2 }, "<")
