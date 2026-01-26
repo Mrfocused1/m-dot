@@ -1479,6 +1479,10 @@ const PlayerController = {
         const throwStartZ = thrownItem.position.z;
         const throwDistance = 50; // Distance to travel
 
+        // Debug: Log initial positions
+        console.log(`🎯 Throw started - Item at Z: ${thrownItem.position.z.toFixed(2)}, Enemy at Z: ${enemyModel ? enemyModel.position.z.toFixed(2) : 'N/A'}, Distance: ${enemyModel ? thrownItem.position.distanceTo(enemyModel.position).toFixed(2) : 'N/A'}`);
+
+
         const animateThrow = () => {
             if (!thrownItem.parent) {
                 // Item was removed - end camera follow
@@ -1493,11 +1497,17 @@ const PlayerController = {
             thrownItem.rotation.x += 0.2;
             thrownItem.rotation.y += 0.15;
 
-            // Check collision with enemy
+            // Check collision with enemy FIRST (before distance check)
             if (enemyModel) {
                 const distance = thrownItem.position.distanceTo(enemyModel.position);
-                if (distance < 2.0) { // Hit detection radius
-                    console.log('🎯 Item hit enemy!');
+
+                // Debug: log positions and distance
+                if (Math.random() < 0.1) { // Log 10% of frames to avoid spam
+                    console.log(`🎯 Throw check - Item Z: ${thrownItem.position.z.toFixed(2)}, Enemy Z: ${enemyModel.position.z.toFixed(2)}, Distance: ${distance.toFixed(2)}`);
+                }
+
+                if (distance < 3.5) { // Increased hit detection radius from 2.0 to 3.5
+                    console.log('🎯 Item hit enemy! Distance:', distance);
                     EnemyController.takeDamage();
                     scene.remove(thrownItem);
                     // Show "Got em!" text and fade
@@ -1506,9 +1516,10 @@ const PlayerController = {
                 }
             }
 
-            // Check if item has traveled far enough
+            // Check if item has traveled far enough (ONLY if no hit)
             if (Math.abs(thrownItem.position.z - throwStartZ) > throwDistance) {
-                console.log('🎯 Item missed - traveled too far');
+                console.log('🎯 Item missed - traveled too far. Final distance from enemy:',
+                    enemyModel ? thrownItem.position.distanceTo(enemyModel.position).toFixed(2) : 'N/A');
                 scene.remove(thrownItem);
                 // Show "Missed!" text and fade
                 this.showThrowResult(false);
