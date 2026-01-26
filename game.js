@@ -1714,10 +1714,10 @@ const PlayerController = {
         // Get animation duration
         const clipDuration = playerAnimations.throw.getClip().duration || 1.0;
 
-        // MOBILE FIX: Delay projectile spawn until 75% through animation (was 60%)
-        // This keeps the held can visible longer during the throw motion
-        const itemSpawnDelay = clipDuration * 0.75 * 1000; // Convert to milliseconds
-        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (75% of ${clipDuration}s animation)`);
+        // MOBILE FIX: Delay projectile spawn until 95% through animation (was 75%)
+        // This keeps the held can visible throughout nearly the entire throw motion
+        const itemSpawnDelay = clipDuration * 0.95 * 1000; // Convert to milliseconds
+        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (95% of ${clipDuration}s animation)`);
 
         setTimeout(() => {
             if (this.isThrowing) {
@@ -1784,7 +1784,7 @@ const PlayerController = {
 
         // CRITICAL FIX: Remove held can from player's hand now that projectile is being created
         if (heldCanModel && playerModel) {
-            console.log('🥤 Removing held can (was at 75% of throw animation)');
+            console.log('🥤 Removing held can (at 95% of throw animation)');
             playerModel.remove(heldCanModel);
             heldCanModel = null;
             console.log('🥤 Held can removed - projectile taking over');
@@ -1993,6 +1993,12 @@ const PlayerController = {
             console.log('🎯 Cleared throw timeout - cinematic sequence will handle cleanup');
         }
 
+        // Hide player model during victory text display
+        if (playerModel) {
+            playerModel.visible = false;
+            console.log('👤 Player hidden during "Got em!" text');
+        }
+
         // Create overlay for throw result
         const overlay = document.createElement('div');
         overlay.id = 'throw-result-overlay';
@@ -2098,6 +2104,12 @@ const PlayerController = {
             // Force player back to run animation
             this.switchToRunAnimation();
 
+            // Restore player visibility after "Got em!" text sequence
+            if (playerModel) {
+                playerModel.visible = true;
+                console.log('👤 Player visible again - returning to gameplay');
+            }
+
             // Reset enemy animation back to run (only if not playing death animation)
             if (enemyAnimations.death && enemyAnimations.death.isRunning()) {
                 // Death animation is playing, don't interrupt it
@@ -2105,6 +2117,16 @@ const PlayerController = {
             } else if (enemyAnimations.lookBehind && enemyAnimations.run) {
                 enemyAnimations.lookBehind.stop();
                 if (enemyAnimations.death) enemyAnimations.death.stop();
+
+                // CRITICAL FIX: Reset enemy model transform to prevent lopsided running
+                // Death animation may have altered rotation/position/scale - restore to initial state
+                if (enemyModel) {
+                    enemyModel.rotation.y = Math.PI; // Face away from player (180 degrees)
+                    enemyModel.position.set(0, 1.0, -15); // Reset to starting position
+                    enemyModel.scale.set(0.01, 0.01, 0.01); // Reset to correct scale
+                    console.log('🔄 Enemy model transform reset (rotation, position, scale)');
+                }
+
                 enemyAnimations.run.reset();
                 enemyAnimations.run.play();
                 console.log('👀 Enemy animation reset to run');
@@ -8135,17 +8157,17 @@ function animate() {
                 // Look slightly ahead of item to see enemy in frame
                 camera.lookAt(item.position.x, item.position.y, item.position.z - 8);
             } else if (playerModel) {
-                // CLOSE-UP camera following player (user requested this view as default)
-                // Matches the enemy reaction close-up camera style
-                const sideOffset = 3; // Slightly to the side for dynamic angle
-                const cameraHeight = 2; // At chest/face level
-                const behindDistance = 5; // 5 units behind player
+                // CLOSE-UP camera following player FROM BEHIND (user requested this view as default)
+                // Camera positioned directly behind player, looking forward
+                const sideOffset = 0; // NO side offset - directly behind
+                const cameraHeight = 3; // Higher for better view over shoulder
+                const behindDistance = 6; // 6 units behind player
 
                 camera.position.x = playerModel.position.x + sideOffset;
                 camera.position.y = playerModel.position.y + cameraHeight;
                 camera.position.z = playerModel.position.z + behindDistance;
 
-                // Look at player's upper body
+                // Look at player's upper body/head area
                 camera.lookAt(playerModel.position.x, playerModel.position.y + 1.5, playerModel.position.z);
             }
 
