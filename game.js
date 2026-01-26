@@ -794,12 +794,40 @@ const WALL_HEIGHT = 3;
 const MusicController = {
     level1Music: null,
     currentlyPlaying: null,
+    pendingPlay: null, // Track which music should play on user interaction
+    interactionListenersAdded: false,
 
     init() {
         this.level1Music = document.getElementById('level1-music');
         if (this.level1Music) {
             this.level1Music.volume = 0.5; // Set volume to 50%
         }
+    },
+
+    // Add event listeners for user interaction to unlock audio
+    addInteractionListeners() {
+        if (this.interactionListenersAdded) return;
+        this.interactionListenersAdded = true;
+
+        const playOnInteraction = () => {
+            if (this.pendingPlay) {
+                this.pendingPlay.play().then(() => {
+                    console.log('🎵 Music started after user interaction');
+                    this.currentlyPlaying = this.pendingPlay;
+                    this.pendingPlay = null;
+                }).catch(e => console.log('Music play failed:', e));
+            }
+            // Remove listeners after first successful interaction
+            document.removeEventListener('click', playOnInteraction);
+            document.removeEventListener('touchstart', playOnInteraction);
+            document.removeEventListener('keydown', playOnInteraction);
+            this.interactionListenersAdded = false;
+        };
+
+        document.addEventListener('click', playOnInteraction);
+        document.addEventListener('touchstart', playOnInteraction);
+        document.addEventListener('keydown', playOnInteraction);
+        console.log('🎵 Waiting for user interaction to play music...');
     },
 
     playLevel1Music() {
@@ -832,9 +860,13 @@ const MusicController = {
                 .then(() => {
                     console.log('🎵 Level 1 music playing');
                     this.currentlyPlaying = this.level1Music;
+                    this.pendingPlay = null;
                 })
                 .catch(err => {
                     console.log('🎵 Music autoplay blocked, will play on user interaction:', err);
+                    // Store reference to play on first user interaction
+                    this.pendingPlay = this.level1Music;
+                    this.addInteractionListeners();
                 });
         }
     },
@@ -845,6 +877,7 @@ const MusicController = {
             this.level1Music.currentTime = 0;
         }
         this.currentlyPlaying = null;
+        this.pendingPlay = null; // Clear pending play when stopping
         console.log('🎵 All music stopped');
     },
 
