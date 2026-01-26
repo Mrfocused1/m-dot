@@ -156,6 +156,11 @@
     <!-- Custom Cursor -->
     <div id="cursor"></div>
 
+    <!-- Theme Music -->
+    <audio id="theme-music" preload="auto">
+        <source src="merkleman-theme.mp3" type="audio/mpeg">
+    </audio>
+
     <!-- LOADING SCREEN (Street Fighter Style) -->
     <div id="loader" class="fixed inset-0 z-[100] flex overflow-hidden font-display bg-black select-none">
         <!-- Left Side (Hero) -->
@@ -293,6 +298,26 @@
                 });
                 magnet.addEventListener('mouseleave', () => {
                     gsap.to(magnet, { duration: 0.3, x: 0, y: 0 });
+                });
+            });
+
+            // --- Theme Music on Button Click ---
+            const themeMusic = document.getElementById('theme-music');
+            const playButtons = document.querySelectorAll('.magnet-btn');
+
+            playButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    // Play the music
+                    themeMusic.currentTime = 0; // Start from beginning
+                    themeMusic.play().catch(err => console.log('Audio play failed:', err));
+
+                    // If it's the Play Game button, allow navigation after a brief moment
+                    if (button.tagName === 'A') {
+                        e.preventDefault();
+                        setTimeout(() => {
+                            window.location.href = button.href;
+                        }, 300);
+                    }
                 });
             });
 
