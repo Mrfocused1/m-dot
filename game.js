@@ -916,7 +916,7 @@ let scene, camera, renderer;
 let player, enemy;
 let playerMixer, enemyMixer;
 let playerModel, enemyModel;
-let playerAnimations = {}; // Store run, turnLeft animations
+let playerAnimations = {}; // Store run, jump, pickup, throw animations
 let currentPlayerAnimation = null;
 let clock;
 
@@ -1290,10 +1290,8 @@ const PlayerController = {
             Input.inputProcessed = false;
         }
 
-        // Detect lane change and play turn animation (only if not jumping)
-        if (this.targetLane !== this.previousTargetLane && !this.isJumping) {
-            const direction = this.targetLane > this.previousTargetLane ? 'right' : 'left';
-            this.playTurnAnimation(direction);
+        // Track lane changes
+        if (this.targetLane !== this.previousTargetLane) {
             this.previousTargetLane = this.targetLane;
         }
 
@@ -1306,15 +1304,6 @@ const PlayerController = {
                 playerModel.position.x += diff * this.laneChangeSpeed * dt;
             } else {
                 playerModel.position.x = targetX;
-                // Return to appropriate run animation when centered in lane (and not jumping, picking up, or throwing)
-                const isInTurnAnimation = currentPlayerAnimation === 'turnLeft';
-                if (isInTurnAnimation && !this.isJumping && !this.isPickingUp && !this.isThrowing) {
-                    if (this.hasItem) {
-                        this.switchToHoldingRunAnimation();
-                    } else {
-                        this.switchToRunAnimation();
-                    }
-                }
             }
         }
 
@@ -1433,30 +1422,6 @@ const PlayerController = {
         this.switchToRunAnimation();
     },
 
-    playTurnAnimation(direction) {
-        if (!playerMixer) return;
-
-        // Only play turn animation for left turns
-        if (direction === 'left') {
-            const turnAnim = playerAnimations.turnLeft;
-
-            if (turnAnim) {
-                // Fade out current animation (could be run or runHolding)
-                const currentAnim = playerAnimations[currentPlayerAnimation];
-                if (currentAnim) {
-                    currentAnim.fadeOut(0.2);
-                }
-
-                // Fade in turn animation
-                turnAnim.reset();
-                turnAnim.fadeIn(0.2);
-                turnAnim.play();
-
-                currentPlayerAnimation = 'turnLeft';
-            }
-        }
-        // For right turns, no animation change - just continue current animation
-    },
 
     switchToRunAnimation() {
         if (!playerMixer || !playerAnimations.run) return;
@@ -3385,8 +3350,7 @@ function loadPlayerCharacter() {
 
         console.log('Player character loaded');
 
-        // Load turn, jump, and pickup animations
-        loadPlayerTurnAnimation();
+        // Load jump, pickup, holding, and throw animations
         loadPlayerJumpAnimation();
         loadPlayerPickupAnimation();
         loadPlayerHoldingRunAnimation();
@@ -3397,38 +3361,6 @@ function loadPlayerCharacter() {
     });
 }
 
-function loadPlayerTurnAnimation() {
-    const loader = stage1FBXLoader;
-
-    loader.load('jammer_running_turn.fbx', (fbx) => {
-        if (fbx.animations && fbx.animations.length > 0) {
-            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER TURN');
-
-            // Create mirrored left turn by cloning and inverting Y rotations
-            const leftClip = clip.clone();
-            leftClip.name = 'turn_left';
-            leftClip.tracks = leftClip.tracks.map(track => {
-                const trackClone = track.clone();
-                // Mirror Y-axis rotations (turns) by inverting quaternion Y and W components
-                if (trackClone.name.includes('.quaternion')) {
-                    for (let i = 0; i < trackClone.values.length; i += 4) {
-                        trackClone.values[i + 1] *= -1; // Invert Y
-                        trackClone.values[i + 3] *= -1; // Invert W
-                    }
-                }
-                return trackClone;
-            });
-
-            playerAnimations.turnLeft = playerMixer.clipAction(leftClip);
-            playerAnimations.turnLeft.setLoop(THREE.LoopOnce);
-            playerAnimations.turnLeft.clampWhenFinished = true;
-
-            console.log('Turn left animation loaded');
-        }
-    }, undefined, (error) => {
-        console.warn('Turn animation not loaded:', error);
-    });
-}
 
 function loadPlayerJumpAnimation() {
     const loader = stage1FBXLoader;
