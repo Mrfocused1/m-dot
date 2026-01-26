@@ -979,7 +979,6 @@ const Input = {
     touchX: 0,
     touchY: 0,
     inputProcessed: false,
-    jumpRequested: false,
     canvas: null,
 
     init() {
@@ -1124,14 +1123,11 @@ const Input = {
         const deltaY = Math.abs(touch.clientY - this.touchStartY);
         const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        // TAP detection: short duration + minimal movement = tap to shoot/jump
+        // TAP detection: short duration + minimal movement = tap to shoot
         if (touchDuration < 200 && totalDistance < 20) {
             if (GameState.selectedLevel === 'shoot' && GameState.screen === 'PLAYING') {
                 console.log('📱 TAP detected - SHOOT!');
                 MazeController.shoot();
-            } else if (GameState.selectedLevel === 'chase' && GameState.screen === 'PLAYING') {
-                console.log('📱 TAP detected - JUMP!');
-                this.jumpRequested = true;
             }
         }
 
@@ -1185,16 +1181,6 @@ const Input = {
             return;
         }
 
-        // Jump with spacebar in Level 1
-        if (e.key === ' ' || e.key === 'Spacebar') {
-            if (GameState.selectedLevel === 'chase' && GameState.screen === 'PLAYING') {
-                e.preventDefault();
-                console.log('⌨️ SPACEBAR - JUMP!');
-                this.jumpRequested = true;
-            }
-            return;
-        }
-
         if (e.key === 'ArrowLeft') {
             this.touchSide = 'LEFT';
             this.touchActive = true;
@@ -1232,10 +1218,9 @@ const PlayerController = {
     },
 
     update(dt) {
-        // Handle jump input
-        if (Input.jumpRequested && !this.isJumping) {
-            this.startJump();
-            Input.jumpRequested = false;
+        // Auto-jump when approaching a barrier in current lane
+        if (!this.isJumping && playerModel) {
+            this.checkAutoJump();
         }
 
         // Handle lane change input
@@ -1286,10 +1271,27 @@ const PlayerController = {
         }
     },
 
-    startJump() {
-        if (!playerMixer || !playerAnimations.flip) return;
+    checkAutoJump() {
+        // Check if there's a barrier ahead in the current lane
+        for (let i = 0; i < obstacles.length; i++) {
+            const obstacle = obstacles[i];
+            if (!obstacle.active) continue;
 
-        console.log('🦘 Jump started!');
+            const sameColumn = obstacle.lane === this.targetLane;
+            const distance = obstacle.mesh.position.z - playerModel.position.z;
+
+            // If barrier is ahead and within jump trigger distance (3-5 units)
+            if (sameColumn && distance > -3 && distance < -1.5) {
+                this.startJump();
+                break;
+            }
+        }
+    },
+
+    startJump() {
+        if (!playerMixer || !playerAnimations.jump) return;
+
+        console.log('🦘 Auto-jump triggered!');
         this.isJumping = true;
         this.jumpStartY = playerModel ? playerModel.position.y : 1.0;
 
@@ -1299,11 +1301,11 @@ const PlayerController = {
             currentAnim.fadeOut(0.1);
         }
 
-        // Play flip animation
-        playerAnimations.flip.reset();
-        playerAnimations.flip.fadeIn(0.1);
-        playerAnimations.flip.play();
-        currentPlayerAnimation = 'flip';
+        // Play jump animation
+        playerAnimations.jump.reset();
+        playerAnimations.jump.fadeIn(0.1);
+        playerAnimations.jump.play();
+        currentPlayerAnimation = 'jump';
     },
 
     finishJump() {
@@ -3120,9 +3122,9 @@ function loadPlayerCharacter() {
 
         console.log('Player character loaded');
 
-        // Load turn and flip animations
+        // Load turn and jump animations
         loadPlayerTurnAnimation();
-        loadPlayerFlipAnimation();
+        loadPlayerJumpAnimation();
     }, undefined, (error) => {
         console.error('Error loading player FBX:', error);
         createFallbackPlayer();
@@ -3167,28 +3169,28 @@ function loadPlayerTurnAnimation() {
     });
 }
 
-function loadPlayerFlipAnimation() {
+function loadPlayerJumpAnimation() {
     const loader = stage1FBXLoader;
 
-    loader.load('jammer_flip.fbx', (fbx) => {
+    loader.load('jammer_jump.fbx', (fbx) => {
         if (fbx.animations && fbx.animations.length > 0) {
-            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER FLIP');
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER JUMP');
 
-            playerAnimations.flip = playerMixer.clipAction(clip);
-            playerAnimations.flip.setLoop(THREE.LoopOnce);
-            playerAnimations.flip.clampWhenFinished = false;
+            playerAnimations.jump = playerMixer.clipAction(clip);
+            playerAnimations.jump.setLoop(THREE.LoopOnce);
+            playerAnimations.jump.clampWhenFinished = false;
 
-            // When flip animation finishes, return to run
+            // When jump animation finishes, return to run
             playerMixer.addEventListener('finished', (e) => {
-                if (e.action === playerAnimations.flip) {
+                if (e.action === playerAnimations.jump) {
                     PlayerController.finishJump();
                 }
             });
 
-            console.log('Flip animation loaded');
+            console.log('Jump animation loaded');
         }
     }, undefined, (error) => {
-        console.warn('Flip animation not loaded:', error);
+        console.warn('Jump animation not loaded:', error);
     });
 }
 
@@ -5772,7 +5774,6 @@ function toggleHelpOverlay() {
                     <div style="margin-left: 20px; line-height: 1.8;">
                         <div><span style="color: #4fc3f7;">←</span> Arrow Left - Move to left lane</div>
                         <div><span style="color: #4fc3f7;">→</span> Arrow Right - Move to right lane</div>
-                        <div><span style="color: #4fc3f7;">Space</span> - Jump over barriers</div>
                     </div>
                 </div>
 
@@ -5789,8 +5790,12 @@ function toggleHelpOverlay() {
                     <div style="margin-left: 20px; line-height: 1.8;">
                         <div>Tap left side - Move left</div>
                         <div>Tap right side - Move right</div>
-                        <div>Tap center - Jump over barriers</div>
                     </div>
+                </div>
+
+                <div style="margin-bottom: 15px; padding: 15px; background: rgba(79, 195, 247, 0.1); border-radius: 8px; border-left: 3px solid #4fc3f7;">
+                    <div style="font-weight: bold; margin-bottom: 5px; color: #4fc3f7;">💡 Tip:</div>
+                    <div style="font-size: 14px; line-height: 1.6;">Jammer automatically jumps over barriers in his path!</div>
                 </div>
             ` : `
                 <div style="margin-bottom: 15px;">
