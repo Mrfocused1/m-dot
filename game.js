@@ -2719,6 +2719,7 @@ const ObstacleManager = {
 const roadSegments = [];
 let roadModels = []; // Array to hold 3D road model instances
 let roadModelTemplate = null; // Loaded GLB template to clone
+let laneMarkers = []; // Array to hold lane marker objects
 
 class RoadSegment {
     constructor(zPosition) {
@@ -2763,6 +2764,9 @@ class RoadSegment {
 }
 
 const EnvironmentManager = {
+    laneMarkerTimer: 0,
+    laneMarkerInterval: 1.5, // Spawn a marker every 1.5 seconds
+
     init() {
         // Load 3D road model first
         this.loadRoadModel();
@@ -2785,6 +2789,32 @@ const EnvironmentManager = {
 
         // Light fog for depth (sky blue to match background)
         scene.fog = new THREE.Fog(0x87CEEB, 50, 150); // Lighter and farther
+
+        // Create initial lane markers
+        this.createInitialLaneMarkers();
+    },
+
+    createInitialLaneMarkers() {
+        // Create several markers along the road to start
+        for (let i = 0; i < 15; i++) {
+            this.spawnLaneMarker(-50 - (i * 5)); // Spawn markers every 5 units back
+        }
+    },
+
+    spawnLaneMarker(zPosition) {
+        // Create left lane marker (between lane 0 and 1)
+        const leftMarkerGeometry = new THREE.BoxGeometry(0.3, 0.1, 2);
+        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const leftMarker = new THREE.Mesh(leftMarkerGeometry, markerMaterial);
+        leftMarker.position.set(-LANE_WIDTH / 2, 0.1, zPosition);
+        scene.add(leftMarker);
+
+        // Create right lane marker (between lane 1 and 2)
+        const rightMarker = new THREE.Mesh(leftMarkerGeometry, markerMaterial);
+        rightMarker.position.set(LANE_WIDTH / 2, 0.1, zPosition);
+        scene.add(rightMarker);
+
+        laneMarkers.push({ left: leftMarker, right: rightMarker });
     },
 
     loadRoadModel() {
@@ -2937,6 +2967,31 @@ const EnvironmentManager = {
                 roadModel.position.z -= 60;
             }
         });
+
+        // Update lane markers
+        this.laneMarkerTimer += dt;
+
+        // Spawn new markers periodically
+        if (this.laneMarkerTimer >= this.laneMarkerInterval) {
+            this.laneMarkerTimer = 0;
+            this.spawnLaneMarker(-50); // Spawn far behind
+        }
+
+        // Move all markers forward and remove old ones
+        for (let i = laneMarkers.length - 1; i >= 0; i--) {
+            const marker = laneMarkers[i];
+
+            // Move both left and right markers
+            marker.left.position.z += GameState.gameSpeed * dt;
+            marker.right.position.z += GameState.gameSpeed * dt;
+
+            // Remove markers that passed the camera
+            if (marker.left.position.z > 10) {
+                scene.remove(marker.left);
+                scene.remove(marker.right);
+                laneMarkers.splice(i, 1);
+            }
+        }
 
         // Update fallback road segments if they exist
         roadSegments.forEach(segment => segment.update(dt));
@@ -5865,6 +5920,13 @@ function startShootingGame() {
         scene.remove(roadModel);
     });
     roadModels.length = 0;
+
+    // Clear lane markers
+    laneMarkers.forEach(marker => {
+        scene.remove(marker.left);
+        scene.remove(marker.right);
+    });
+    laneMarkers.length = 0;
 
     // Build the testing ground
     buildTestingGround();
