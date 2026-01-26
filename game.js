@@ -746,7 +746,9 @@ let player, enemy;
 let playerMixer, enemyMixer;
 let playerModel, enemyModel;
 let playerAnimations = {}; // Store run, jump, pickup, throw animations
+let enemyAnimations = {}; // Store run, lookBehind animations
 let currentPlayerAnimation = null;
+let enemyLookBehindTriggered = false; // Track if look-behind animation has been triggered
 let clock;
 
 // Game world
@@ -1502,6 +1504,9 @@ const PlayerController = {
     createThrownItem() {
         if (!playerModel) return;
 
+        // Reset look-behind trigger for this new throw
+        enemyLookBehindTriggered = false;
+
         // Create a golden sphere as the thrown item
         const geometry = new THREE.SphereGeometry(0.3, 16, 16);
         const material = new THREE.MeshStandardMaterial({
@@ -1553,6 +1558,16 @@ const PlayerController = {
                 // Debug: log positions and distance
                 if (Math.random() < 0.1) { // Log 10% of frames to avoid spam
                     console.log(`🎯 Throw check - Item Z: ${thrownItem.position.z.toFixed(2)}, Enemy Z: ${enemyModel.position.z.toFixed(2)}, Distance: ${distance.toFixed(2)}`);
+                }
+
+                // Trigger look-behind animation when item gets close (but hasn't hit yet)
+                if (distance < 7.5 && !enemyLookBehindTriggered && enemyAnimations.lookBehind) {
+                    console.log('👀 Enemy looks behind! Distance:', distance.toFixed(2));
+                    // Stop run animation and play look-behind
+                    if (enemyAnimations.run) enemyAnimations.run.stop();
+                    enemyAnimations.lookBehind.reset();
+                    enemyAnimations.lookBehind.play();
+                    enemyLookBehindTriggered = true;
                 }
 
                 if (distance < 3.5) { // Increased hit detection radius from 2.0 to 3.5
@@ -1681,6 +1696,15 @@ const PlayerController = {
             // End camera follow and return to normal
             this.endThrowCameraFollow();
             this.finishThrow();
+
+            // Reset enemy animation back to run
+            if (enemyAnimations.lookBehind && enemyAnimations.run) {
+                enemyAnimations.lookBehind.stop();
+                enemyAnimations.run.reset();
+                enemyAnimations.run.play();
+                console.log('👀 Enemy animation reset to run');
+            }
+            enemyLookBehindTriggered = false;
 
             console.log('🎬 States after cleanup: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp + ', gameSpeed=' + GameState.gameSpeed);
 
@@ -4177,19 +4201,34 @@ function loadEnemyCharacter() {
 
         scene.add(enemyModel);
 
-        // Setup animation with proper looping
+        // Setup animation mixer
         enemyMixer = new THREE.AnimationMixer(enemyModel);
-        if (fbx.animations && fbx.animations.length > 0) {
-            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'ENEMY RUN');
 
-            const action = enemyMixer.clipAction(clip);
-            action.setLoop(THREE.LoopRepeat, Infinity);
-            action.clampWhenFinished = false;
-            action.timeScale = 1.0;
-            action.reset();
-            action.play();
-            console.log('ENEMY: Animation playing, duration:', clip.duration);
+        // Load run animation from the main FBX
+        if (fbx.animations && fbx.animations.length > 0) {
+            const runClip = normalizeAndCleanAnimation(fbx.animations[0], 'ENEMY RUN');
+            enemyAnimations.run = enemyMixer.clipAction(runClip);
+            enemyAnimations.run.setLoop(THREE.LoopRepeat, Infinity);
+            enemyAnimations.run.clampWhenFinished = false;
+            enemyAnimations.run.timeScale = 1.0;
+            enemyAnimations.run.reset();
+            enemyAnimations.run.play();
+            console.log('ENEMY: Run animation loaded, duration:', runClip.duration);
         }
+
+        // Load look-behind animation from separate file
+        loader.load('Look Behind Run.fbx', (lookBehindFbx) => {
+            if (lookBehindFbx.animations && lookBehindFbx.animations.length > 0) {
+                const lookBehindClip = normalizeAndCleanAnimation(lookBehindFbx.animations[0], 'ENEMY LOOK BEHIND');
+                enemyAnimations.lookBehind = enemyMixer.clipAction(lookBehindClip);
+                enemyAnimations.lookBehind.setLoop(THREE.LoopRepeat, Infinity);
+                enemyAnimations.lookBehind.clampWhenFinished = false;
+                enemyAnimations.lookBehind.timeScale = 1.0;
+                console.log('ENEMY: Look-behind animation loaded, duration:', lookBehindClip.duration);
+            }
+        }, undefined, (error) => {
+            console.warn('⚠️ Error loading look-behind animation:', error);
+        });
 
         console.log('Enemy character loaded');
 
