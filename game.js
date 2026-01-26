@@ -3104,7 +3104,7 @@ class Pickup {
 
 const PickupManager = {
     spawnTimer: 0,
-    spawnInterval: 3.0, // Spawn pickups less frequently than obstacles
+    spawnInterval: 8.0, // Spawn pickups every 8 seconds
 
     init() {
         // Create pickup pool
