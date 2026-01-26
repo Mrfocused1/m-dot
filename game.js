@@ -2887,7 +2887,7 @@ const EnvironmentManager = {
 function loadPlayerCharacter() {
     const loader = sharedFBXLoader;
 
-    loader.load('Fast Run.fbx', (fbx) => {
+    loader.load('jammer_run.fbx', (fbx) => {
         playerModel = fbx;
         playerModel.scale.set(0.01, 0.01, 0.01);
         playerModel.position.set(0, 1.0, 0); // Lifted up by 1 unit so feet are on ground
