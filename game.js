@@ -1613,11 +1613,14 @@ const PlayerController = {
         // CRITICAL FIX: Attach visible can to player's hand
         if (colaCanTemplate && playerModel && !heldCanModel) {
             heldCanModel = colaCanTemplate.clone();
-            heldCanModel.scale.set(1.0, 1.0, 1.0);
+            // MOBILE FIX: Much larger scale for better visibility (2.0x instead of 1.0x)
+            heldCanModel.scale.set(2.0, 2.0, 2.0);
 
             // Position can relative to player (in their hand area)
-            heldCanModel.position.set(0.5, 1.2, -0.3); // Right side, chest height, slightly forward
-            heldCanModel.rotation.set(0, 0, 0);
+            // Player is rotated 180° (Math.PI), so local -Z is forward in world space
+            // MOBILE FIX: Very forward (-1.2) and at shoulder height (1.6) for maximum visibility
+            heldCanModel.position.set(0.7, 1.6, -1.2); // Right side, shoulder height, very forward
+            heldCanModel.rotation.set(0, 0, 0.2); // Slight tilt for natural hold
 
             // Make sure it's visible
             heldCanModel.visible = true;
@@ -1631,7 +1634,11 @@ const PlayerController = {
 
             // Add to player model so it moves with the player
             playerModel.add(heldCanModel);
-            console.log('🥤 Can attached to player hand - now visible!');
+            console.log('🥤 Can attached to player hand (mobile-optimized: scale 2.0, forward -1.2)');
+            console.log('   Position:', heldCanModel.position);
+            console.log('   Scale:', heldCanModel.scale);
+            console.log('   Visible:', heldCanModel.visible);
+            console.log('   In scene via player:', playerModel.children.includes(heldCanModel));
         }
 
         // Switch to holding run animation
@@ -1653,6 +1660,11 @@ const PlayerController = {
         if (!playerMixer || !playerAnimations.throw || !this.hasItem || this.isThrowing) return;
 
         console.log('🎯 Throw started!');
+        console.log('   Held can exists:', !!heldCanModel);
+        if (heldCanModel) {
+            console.log('   Held can visible:', heldCanModel.visible);
+            console.log('   Held can position:', heldCanModel.position);
+        }
         this.isThrowing = true;
         this.hasItem = false; // CRITICAL: Clear immediately, don't wait for finishThrow
         this.hasThrown = true; // Enable obstacle collision after first throw
@@ -1696,9 +1708,10 @@ const PlayerController = {
         // Get animation duration
         const clipDuration = playerAnimations.throw.getClip().duration || 1.0;
 
-        // Delay the projectile spawn until 60% through the throw animation
-        const itemSpawnDelay = clipDuration * 0.6 * 1000; // Convert to milliseconds
-        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (60% of ${clipDuration}s animation)`);
+        // MOBILE FIX: Delay projectile spawn until 75% through animation (was 60%)
+        // This keeps the held can visible longer during the throw motion
+        const itemSpawnDelay = clipDuration * 0.75 * 1000; // Convert to milliseconds
+        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (75% of ${clipDuration}s animation)`);
 
         setTimeout(() => {
             if (this.isThrowing) {
@@ -1765,9 +1778,12 @@ const PlayerController = {
 
         // CRITICAL FIX: Remove held can from player's hand now that projectile is being created
         if (heldCanModel && playerModel) {
+            console.log('🥤 Removing held can (was at 75% of throw animation)');
             playerModel.remove(heldCanModel);
             heldCanModel = null;
-            console.log('🥤 Held can removed from player hand (projectile created)');
+            console.log('🥤 Held can removed - projectile taking over');
+        } else {
+            console.warn('⚠️ No held can to remove when creating projectile!');
         }
 
         // Reset look-behind trigger for this new throw
