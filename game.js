@@ -1306,9 +1306,14 @@ const PlayerController = {
                 playerModel.position.x += diff * this.laneChangeSpeed * dt;
             } else {
                 playerModel.position.x = targetX;
-                // Return to run animation when centered in lane (and not jumping)
-                if (currentPlayerAnimation !== 'run' && !this.isJumping && playerAnimations.run) {
-                    this.switchToRunAnimation();
+                // Return to appropriate run animation when centered in lane (and not jumping, picking up, or throwing)
+                const isInTurnAnimation = currentPlayerAnimation === 'turnLeft' || currentPlayerAnimation === 'turnRight';
+                if (isInTurnAnimation && !this.isJumping && !this.isPickingUp && !this.isThrowing) {
+                    if (this.hasItem) {
+                        this.switchToHoldingRunAnimation();
+                    } else {
+                        this.switchToRunAnimation();
+                    }
                 }
             }
         }
@@ -1364,8 +1369,12 @@ const PlayerController = {
         console.log('🦘 Jump finished!');
         this.isJumping = false;
 
-        // Return to run animation
-        this.switchToRunAnimation();
+        // Return to appropriate run animation based on whether holding an item
+        if (this.hasItem) {
+            this.switchToHoldingRunAnimation();
+        } else {
+            this.switchToRunAnimation();
+        }
     },
 
     startPickup() {
@@ -1430,9 +1439,12 @@ const PlayerController = {
         const animKey = direction === 'left' ? 'turnLeft' : 'turnRight';
         const turnAnim = playerAnimations[animKey];
 
-        if (turnAnim && playerAnimations.run) {
-            // Fade out run animation
-            playerAnimations.run.fadeOut(0.2);
+        if (turnAnim) {
+            // Fade out current animation (could be run or runHolding)
+            const currentAnim = playerAnimations[currentPlayerAnimation];
+            if (currentAnim) {
+                currentAnim.fadeOut(0.2);
+            }
 
             // Fade in turn animation
             turnAnim.reset();
