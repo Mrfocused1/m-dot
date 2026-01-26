@@ -1455,12 +1455,20 @@ const PlayerController = {
         playerAnimations.throw.play();
         currentPlayerAnimation = 'throw';
 
-        // Create and throw the projectile
-        this.createThrownItem();
+        // Get animation duration
+        const clipDuration = playerAnimations.throw.getClip().duration || 1.0;
+
+        // Delay the projectile spawn until near the end of the throw animation (80% through)
+        const itemSpawnDelay = clipDuration * 0.8 * 1000; // Convert to milliseconds
+        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (80% of ${clipDuration}s animation)`);
+
+        setTimeout(() => {
+            if (this.isThrowing) {
+                this.createThrownItem();
+            }
+        }, itemSpawnDelay);
 
         // Fallback timeout: ensure finishThrow is called even if animation event doesn't fire
-        // Get clip duration, default to 1 second if not available
-        const clipDuration = playerAnimations.throw.getClip().duration || 1.0;
         const timeoutMs = (clipDuration + 0.5) * 1000; // Add 500ms buffer
         console.log(`🎯 Setting throw timeout fallback: ${timeoutMs}ms (clip duration: ${clipDuration}s)`);
 
