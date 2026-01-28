@@ -969,6 +969,304 @@ const IntroAnimation = {
     }
 };
 
+// ============================================================================
+// CINEMATIC CAMERA SYSTEM - For intro pan/zoom animation
+// ============================================================================
+
+const CinematicCamera = {
+    isActive: false,
+    startPosition: null,
+    startRotation: null,
+    targetPosition: null,
+    targetRotation: null,
+    progress: 0,
+    duration: 0,
+    onComplete: null,
+
+    start(startPos, startRot, targetPos, targetRot, duration, callback) {
+        this.isActive = true;
+        this.startPosition = startPos.clone();
+        this.startRotation = startRot.clone();
+        this.targetPosition = targetPos.clone();
+        this.targetRotation = targetRot.clone();
+        this.progress = 0;
+        this.duration = duration;
+        this.onComplete = callback;
+
+        // Set camera to start position
+        camera.position.copy(this.startPosition);
+        camera.rotation.copy(this.startRotation);
+
+        console.log('Starting cinematic camera animation');
+    },
+
+    update(deltaTime) {
+        if (!this.isActive) return;
+
+        this.progress += deltaTime / this.duration;
+
+        if (this.progress >= 1.0) {
+            // Animation complete
+            camera.position.copy(this.targetPosition);
+            camera.rotation.copy(this.targetRotation);
+            this.isActive = false;
+
+            if (this.onComplete) {
+                this.onComplete();
+            }
+
+            console.log('Cinematic camera animation complete');
+            return;
+        }
+
+        // Smooth easing function (ease-in-out)
+        const t = this.easeInOutCubic(this.progress);
+
+        // Interpolate position
+        camera.position.lerpVectors(this.startPosition, this.targetPosition, t);
+
+        // Interpolate rotation
+        camera.rotation.x = THREE.MathUtils.lerp(this.startRotation.x, this.targetRotation.x, t);
+        camera.rotation.y = THREE.MathUtils.lerp(this.startRotation.y, this.targetRotation.y, t);
+        camera.rotation.z = THREE.MathUtils.lerp(this.startRotation.z, this.targetRotation.z, t);
+    },
+
+    easeInOutCubic(t) {
+        return t < 0.5
+            ? 4 * t * t * t
+            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+};
+
+// ============================================================================
+// COUNTDOWN DISPLAY FUNCTIONS - For intro sequence
+// ============================================================================
+
+function showCountdownNumber(number, callback) {
+    // Create countdown overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'countdown-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.5);
+        color: #ffffff;
+        font-size: 120px;
+        font-weight: 900;
+        font-family: 'Orbitron', sans-serif;
+        z-index: 10000;
+        text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+        opacity: 0;
+        pointer-events: none;
+    `;
+    overlay.textContent = number;
+    document.body.appendChild(overlay);
+
+    // Animate in
+    setTimeout(() => {
+        overlay.style.transition = 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        overlay.style.transform = 'translate(-50%, -50%) scale(1)';
+        overlay.style.opacity = '1';
+    }, 50);
+
+    // Animate out and remove
+    setTimeout(() => {
+        overlay.style.transition = 'all 0.2s ease-out';
+        overlay.style.transform = 'translate(-50%, -50%) scale(1.5)';
+        overlay.style.opacity = '0';
+
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                document.body.removeChild(overlay);
+            }
+            if (callback) callback();
+        }, 200);
+    }, 600);
+}
+
+function showCountdown(callback) {
+    console.log('Starting countdown sequence');
+
+    // Show 3
+    showCountdownNumber('3', () => {
+        // Show 2
+        showCountdownNumber('2', () => {
+            // Show 1
+            showCountdownNumber('1', () => {
+                // Show GO!
+                const goOverlay = document.createElement('div');
+                goOverlay.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%) scale(0.5);
+                    color: #00ff41;
+                    font-size: 100px;
+                    font-weight: 900;
+                    font-family: 'Orbitron', sans-serif;
+                    z-index: 10000;
+                    text-shadow: 0 0 30px rgba(0, 255, 65, 0.8);
+                    opacity: 0;
+                    pointer-events: none;
+                `;
+                goOverlay.textContent = 'GO!';
+                document.body.appendChild(goOverlay);
+
+                setTimeout(() => {
+                    goOverlay.style.transition = 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+                    goOverlay.style.transform = 'translate(-50%, -50%) scale(1.2)';
+                    goOverlay.style.opacity = '1';
+                }, 50);
+
+                setTimeout(() => {
+                    goOverlay.style.transition = 'all 0.3s ease-out';
+                    goOverlay.style.transform = 'translate(-50%, -50%) scale(2)';
+                    goOverlay.style.opacity = '0';
+
+                    setTimeout(() => {
+                        if (goOverlay.parentNode) {
+                            document.body.removeChild(goOverlay);
+                        }
+                        if (callback) callback();
+                    }, 300);
+                }, 500);
+            });
+        });
+    });
+}
+
+// ============================================================================
+// INTRO SEQUENCE ORCHESTRATION - Countdown + Camera Zoom + Gameplay Start
+// ============================================================================
+
+function startIntroSequence() {
+    console.log('Starting intro sequence: Countdown -> Camera Zoom -> Gameplay');
+
+    // Fade out VS loading screen
+    IntroAnimation.complete();
+
+    // Wait for loading screen to fade (800ms fade + 100ms buffer)
+    setTimeout(() => {
+        // Set up cinematic camera position (far away, high angle)
+        // Position: Behind and high, looking down at the player
+        const cinematicStartPosition = new THREE.Vector3(
+            playerModel.position.x,           // Centered on player X
+            playerModel.position.y + 25,      // 25 units up (high angle)
+            playerModel.position.z + 15       // 15 units behind player
+        );
+
+        // Set camera to cinematic position
+        camera.position.copy(cinematicStartPosition);
+
+        // Use lookAt to orient the camera toward the player, then store the rotation
+        camera.lookAt(playerModel.position.x, playerModel.position.y + 1, playerModel.position.z);
+
+        // Make sure scene is visible but frozen
+        GameState.stageFrozen = true;
+        GameState.gameSpeed = 0;
+
+        // Make player and enemy visible
+        if (playerModel) playerModel.visible = true;
+        if (enemyModel) enemyModel.visible = true;
+
+        // Start countdown (3, 2, 1, GO) - takes ~2.4 seconds
+        showCountdown(() => {
+            // After "GO!", start camera zoom
+            startCameraZoom();
+        });
+    }, 900);
+}
+
+function startCameraZoom() {
+    console.log('Starting camera zoom to player');
+
+    // Store current camera state (position/rotation from cinematic start)
+    const startPos = camera.position.clone();
+    const startRot = camera.rotation.clone();
+
+    // Calculate target camera position (normal gameplay position)
+    // Behind player, looking forward (same as normal gameplay camera)
+    const targetPos = new THREE.Vector3(
+        playerModel.position.x,
+        playerModel.position.y + 3,   // 3 units above player (cameraHeight)
+        playerModel.position.z + 6    // 6 units behind player (behindDistance)
+    );
+
+    // Temporarily move camera to target to calculate the target rotation using lookAt
+    camera.position.copy(targetPos);
+    camera.lookAt(playerModel.position.x, playerModel.position.y + 1.5, playerModel.position.z);
+    const targetRot = camera.rotation.clone();
+
+    // Restore camera to start position for animation
+    camera.position.copy(startPos);
+    camera.rotation.copy(startRot);
+
+    // Start 2-second camera animation
+    CinematicCamera.start(
+        startPos,
+        startRot,
+        targetPos,
+        targetRot,
+        2.0,  // 2 second duration
+        () => {
+            // Camera animation complete - start gameplay
+            startGameplayAfterIntro();
+        }
+    );
+}
+
+function startGameplayAfterIntro() {
+    console.log('Starting gameplay NOW');
+
+    // Unfreeze game
+    GameState.stageFrozen = false;
+    GameState.gameSpeed = GAME_SPEED;
+    GameState.isRunning = true;
+
+    // Make sure animations are playing
+    if (playerAnimations && playerAnimations.run && !playerAnimations.run.isRunning()) {
+        playerAnimations.run.play();
+    }
+    if (enemyAnimations && enemyAnimations.run && !enemyAnimations.run.isRunning()) {
+        enemyAnimations.run.play();
+    }
+
+    // Update UI
+    UI.updateUI();
+
+    // Expose game objects to window for testing/debugging
+    Object.defineProperty(window, 'playerModel', { get: () => playerModel, configurable: true });
+    Object.defineProperty(window, 'enemyModel', { get: () => enemyModel, configurable: true });
+    Object.defineProperty(window, 'colaCanTemplate', { get: () => colaCanTemplate, configurable: true });
+    Object.defineProperty(window, 'heldCanModel', { get: () => heldCanModel, configurable: true });
+    window.PlayerController = PlayerController;
+    window.pickups = pickups;
+    window.obstacles = obstacles;
+    window.GameState = GameState;
+    Object.defineProperty(window, 'camera', { get: () => camera, configurable: true });
+    Object.defineProperty(window, 'scene', { get: () => scene, configurable: true });
+    console.log('Game objects exposed to window for testing (with getters for dynamic values)');
+
+    // Check if in preload mode
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPreloading = urlParams.get('preload') === 'true';
+    if (isPreloading && window.parent) {
+        console.log('Sending GAME_FULLY_LOADED message to parent (all 11 assets verified)');
+        window.parent.postMessage({ type: 'GAME_FULLY_LOADED' }, '*');
+    } else {
+        // Normal game start - enable pickups after 2 seconds
+        setTimeout(() => {
+            pickupsEnabled = true;
+        }, 2000);
+
+        // Start music after a brief delay to ensure everything is ready
+        setTimeout(() => {
+            MusicController.playLevel1Music();
+        }, 100);
+    }
+}
+
 // Help overlay
 let helpOverlayVisible = false;
 
@@ -5633,52 +5931,11 @@ function checkStage1AssetsLoaded() {
 
         console.timeEnd('Total Stage 1 Init');
 
-        // === STEP 4: Small delay to let any async work settle ===
+        // === STEP 4: Start the intro sequence (countdown + camera zoom) ===
+        // Wait a moment, then start intro
         setTimeout(() => {
-            // NOW fade out the intro animation
-            IntroAnimation.complete();
-
-            // === STEP 5: Buffer delay before starting gameplay ===
-            // Loading screen takes 500ms + 800ms fade = ~1300ms
-            // Start gameplay smoothly after fade completes
-            setTimeout(() => {
-                console.log('🎮 Starting gameplay NOW');
-                GameState.isRunning = true;
-                UI.updateUI();
-
-                // Expose game objects to window for testing/debugging
-                // Use getters for variables that change at runtime
-                Object.defineProperty(window, 'playerModel', { get: () => playerModel });
-                Object.defineProperty(window, 'enemyModel', { get: () => enemyModel });
-                Object.defineProperty(window, 'colaCanTemplate', { get: () => colaCanTemplate });
-                Object.defineProperty(window, 'heldCanModel', { get: () => heldCanModel });
-                window.PlayerController = PlayerController;
-                window.pickups = pickups;
-                window.obstacles = obstacles;
-                window.GameState = GameState;
-                Object.defineProperty(window, 'camera', { get: () => camera });
-                Object.defineProperty(window, 'scene', { get: () => scene });
-                console.log('🔧 Game objects exposed to window for testing (with getters for dynamic values)');
-
-                // If in preload mode, notify parent window
-                const urlParams = new URLSearchParams(window.location.search);
-                const isPreloading = urlParams.get('preload') === 'true';
-                if (isPreloading && window.parent) {
-                    console.log('📡 Sending GAME_FULLY_LOADED message to parent (all 11 assets verified)');
-                    window.parent.postMessage({ type: 'GAME_FULLY_LOADED' }, '*');
-                } else {
-                    // Normal game start - enable pickups after 2 seconds
-                    setTimeout(() => {
-                        pickupsEnabled = true;
-                    }, 2000);
-
-                    // Start music after a brief delay to ensure everything is ready
-                    setTimeout(() => {
-                        MusicController.playLevel1Music();
-                    }, 100);
-                }
-            }, 1400); // Wait for loading screen fade (500ms wait + 800ms fade + 100ms buffer)
-        }, 100); // Small initial delay for any async settling
+            startIntroSequence();
+        }, 100);
     }
 }
 
@@ -8999,25 +9256,10 @@ function startGame() {
 
         console.timeEnd('Total Stage 1 Init (Replay)');
 
-        // Fade out intro animation if present
-        IntroAnimation.complete();
-
-        // Small delay before starting gameplay for smooth transition
+        // Start the intro sequence (countdown + camera zoom)
         setTimeout(() => {
-            console.log('🎮 Starting gameplay NOW');
-            GameState.isRunning = true;
-            UI.updateUI();
-
-            // Enable pickups after 2 seconds (game is now visible)
-            setTimeout(() => {
-                pickupsEnabled = true;
-            }, 2000);
-
-            // Start music after a brief delay to ensure everything is ready
-            setTimeout(() => {
-                MusicController.playLevel1Music();
-            }, 100);
-        }, 1400); // Wait for loading screen fade
+            startIntroSequence();
+        }, 100);
     } else {
         // Load characters if needed - game will start when both are loaded
         console.log('Loading Stage 1 characters...');
@@ -9208,8 +9450,9 @@ function animate() {
     const delta = rawDelta * GameState.timeScale; // Apply slow motion
 
     // EMERGENCY SAFETY CHECK: Detect and fix stuck gameSpeed
+    // Skip this check during intro sequence (cinematic camera active)
     // Track when gameSpeed was set to 0
-    if (GameState.gameSpeed === 0) {
+    if (GameState.gameSpeed === 0 && !CinematicCamera.isActive) {
         if (!GameState.gameSpeedZeroTime) {
             GameState.gameSpeedZeroTime = Date.now();
         }
@@ -9218,14 +9461,14 @@ function animate() {
 
         // If gameSpeed 0 but not throwing/frozen, recover immediately
         if (!PlayerController.isThrowing && !GameState.stageFrozen) {
-            console.error('🚨 EMERGENCY: gameSpeed stuck at 0 outside of throw/freeze state! Auto-recovering...');
+            console.error('EMERGENCY: gameSpeed stuck at 0 outside of throw/freeze state! Auto-recovering...');
             GameState.gameSpeed = GAME_SPEED;
             GameState.gameSpeedZeroTime = null;
-            console.log('⚡ EMERGENCY: Restored gameSpeed to', GAME_SPEED);
+            console.log('EMERGENCY: Restored gameSpeed to', GAME_SPEED);
         }
         // If stuck for more than 10 seconds even while "throwing", force recovery
         else if (timeStuck > 10000) {
-            console.error('🚨 EMERGENCY: gameSpeed stuck at 0 for 10+ seconds! Forcing recovery...');
+            console.error('EMERGENCY: gameSpeed stuck at 0 for 10+ seconds! Forcing recovery...');
             console.error('   isThrowing:', PlayerController.isThrowing, 'stageFrozen:', GameState.stageFrozen);
             GameState.gameSpeed = GAME_SPEED;
             GameState.gameSpeedZeroTime = null;
@@ -9234,9 +9477,9 @@ function animate() {
             PlayerController.hasItem = false;
             PlayerController.isPickingUp = false;
             GameState.stageFrozen = false;
-            console.log('⚡ EMERGENCY: Forced full state reset');
+            console.log('EMERGENCY: Forced full state reset');
         }
-    } else {
+    } else if (GameState.gameSpeed !== 0) {
         // gameSpeed is not 0, clear the timer
         GameState.gameSpeedZeroTime = null;
     }
@@ -9252,6 +9495,11 @@ function animate() {
         if (window._mixerDebugCounter % 120 === 0) { // Every ~2 seconds at 60fps
             console.log('[MIXER DEBUG] Shooter mixer updating, delta:', delta.toFixed(4), 'actions:', shooterMixer._actions.length);
         }
+    }
+
+    // Update cinematic camera if active (intro pan/zoom animation)
+    if (CinematicCamera.isActive) {
+        CinematicCamera.update(rawDelta); // Use raw delta for smooth animation regardless of timeScale
     }
 
     // Rotate sky dome for motion illusion (only in Level 1)
@@ -9330,74 +9578,77 @@ function animate() {
             }
 
             // Update camera to follow player, thrown item, or enemy reaction
-            // Get camera shake offset if active
-            const shakeOffset = PlayerController.getCameraShakeOffset();
+            // Only update camera normally if cinematic camera is not active
+            if (!CinematicCamera.isActive) {
+                // Get camera shake offset if active
+                const shakeOffset = PlayerController.getCameraShakeOffset();
 
-            if (PlayerController.isFollowingEnemyReaction && enemyModel) {
-                // ENEMY HIT REACTION CLOSE-UP - zoom in on enemy
-                const enemy = enemyModel;
-                const closeUpDistance = 5; // Much closer to enemy
-                const sideOffset = 3; // Slightly to side for better angle
-                const cameraHeight = 2; // At chest/face level
+                if (PlayerController.isFollowingEnemyReaction && enemyModel) {
+                    // ENEMY HIT REACTION CLOSE-UP - zoom in on enemy
+                    const enemy = enemyModel;
+                    const closeUpDistance = 5; // Much closer to enemy
+                    const sideOffset = 3; // Slightly to side for better angle
+                    const cameraHeight = 2; // At chest/face level
 
-                camera.position.x = enemy.position.x + sideOffset + shakeOffset.x;
-                camera.position.y = enemy.position.y + cameraHeight + shakeOffset.y;
-                camera.position.z = enemy.position.z + closeUpDistance + shakeOffset.z;
+                    camera.position.x = enemy.position.x + sideOffset + shakeOffset.x;
+                    camera.position.y = enemy.position.y + cameraHeight + shakeOffset.y;
+                    camera.position.z = enemy.position.z + closeUpDistance + shakeOffset.z;
 
-                // Look at enemy's upper body/face
-                camera.lookAt(enemy.position.x, enemy.position.y + 1.5, enemy.position.z);
-            } else if (PlayerController.cinematicThrowActive && PlayerController.activeThrownItem) {
-                // ============================================
-                // CINEMATIC THROW CAMERA - Side view of arc
-                // ============================================
-                const item = PlayerController.activeThrownItem;
+                    // Look at enemy's upper body/face
+                    camera.lookAt(enemy.position.x, enemy.position.y + 1.5, enemy.position.z);
+                } else if (PlayerController.cinematicThrowActive && PlayerController.activeThrownItem) {
+                    // ============================================
+                    // CINEMATIC THROW CAMERA - Side view of arc
+                    // ============================================
+                    const item = PlayerController.activeThrownItem;
 
-                // Use the smoothly interpolated camera position
-                camera.position.x = PlayerController.cinematicCameraPosition.x + shakeOffset.x;
-                camera.position.y = PlayerController.cinematicCameraPosition.y + shakeOffset.y;
-                camera.position.z = PlayerController.cinematicCameraPosition.z + shakeOffset.z;
+                    // Use the smoothly interpolated camera position
+                    camera.position.x = PlayerController.cinematicCameraPosition.x + shakeOffset.x;
+                    camera.position.y = PlayerController.cinematicCameraPosition.y + shakeOffset.y;
+                    camera.position.z = PlayerController.cinematicCameraPosition.z + shakeOffset.z;
 
-                // Look at the smoothly interpolated target (between can and enemy)
-                const lookTarget = new THREE.Vector3(
-                    PlayerController.cinematicCameraTarget.x,
-                    PlayerController.cinematicCameraTarget.y,
-                    PlayerController.cinematicCameraTarget.z
-                );
+                    // Look at the smoothly interpolated target (between can and enemy)
+                    const lookTarget = new THREE.Vector3(
+                        PlayerController.cinematicCameraTarget.x,
+                        PlayerController.cinematicCameraTarget.y,
+                        PlayerController.cinematicCameraTarget.z
+                    );
 
-                // Blend look target between can and enemy for better framing
-                if (enemyModel) {
-                    const blendFactor = 0.3; // 30% toward enemy, 70% toward can
-                    lookTarget.x = lookTarget.x * (1 - blendFactor) + enemyModel.position.x * blendFactor;
-                    lookTarget.y = lookTarget.y * (1 - blendFactor) + (enemyModel.position.y + 1.5) * blendFactor;
-                    lookTarget.z = lookTarget.z * (1 - blendFactor) + enemyModel.position.z * blendFactor;
+                    // Blend look target between can and enemy for better framing
+                    if (enemyModel) {
+                        const blendFactor = 0.3; // 30% toward enemy, 70% toward can
+                        lookTarget.x = lookTarget.x * (1 - blendFactor) + enemyModel.position.x * blendFactor;
+                        lookTarget.y = lookTarget.y * (1 - blendFactor) + (enemyModel.position.y + 1.5) * blendFactor;
+                        lookTarget.z = lookTarget.z * (1 - blendFactor) + enemyModel.position.z * blendFactor;
+                    }
+
+                    camera.lookAt(lookTarget);
+                } else if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
+                    // Fallback: Legacy camera follow (shouldn't normally reach here with cinematic system)
+                    const item = PlayerController.activeThrownItem;
+                    const sideOffset = 8;
+                    const cameraHeight = 3;
+                    const depthOffset = 4;
+
+                    camera.position.x = item.position.x + sideOffset + shakeOffset.x;
+                    camera.position.y = item.position.y + cameraHeight + shakeOffset.y;
+                    camera.position.z = item.position.z + depthOffset + shakeOffset.z;
+
+                    camera.lookAt(item.position.x, item.position.y, item.position.z - 8);
+                } else if (playerModel) {
+                    // CLOSE-UP camera following player FROM BEHIND (user requested this view as default)
+                    // Camera positioned directly behind player, looking forward
+                    const sideOffset = 0; // NO side offset - directly behind
+                    const cameraHeight = 3; // Higher for better view over shoulder
+                    const behindDistance = 6; // 6 units behind player
+
+                    camera.position.x = playerModel.position.x + sideOffset + shakeOffset.x;
+                    camera.position.y = playerModel.position.y + cameraHeight + shakeOffset.y;
+                    camera.position.z = playerModel.position.z + behindDistance + shakeOffset.z;
+
+                    // Look at player's upper body/head area
+                    camera.lookAt(playerModel.position.x, playerModel.position.y + 1.5, playerModel.position.z);
                 }
-
-                camera.lookAt(lookTarget);
-            } else if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
-                // Fallback: Legacy camera follow (shouldn't normally reach here with cinematic system)
-                const item = PlayerController.activeThrownItem;
-                const sideOffset = 8;
-                const cameraHeight = 3;
-                const depthOffset = 4;
-
-                camera.position.x = item.position.x + sideOffset + shakeOffset.x;
-                camera.position.y = item.position.y + cameraHeight + shakeOffset.y;
-                camera.position.z = item.position.z + depthOffset + shakeOffset.z;
-
-                camera.lookAt(item.position.x, item.position.y, item.position.z - 8);
-            } else if (playerModel) {
-                // CLOSE-UP camera following player FROM BEHIND (user requested this view as default)
-                // Camera positioned directly behind player, looking forward
-                const sideOffset = 0; // NO side offset - directly behind
-                const cameraHeight = 3; // Higher for better view over shoulder
-                const behindDistance = 6; // 6 units behind player
-
-                camera.position.x = playerModel.position.x + sideOffset + shakeOffset.x;
-                camera.position.y = playerModel.position.y + cameraHeight + shakeOffset.y;
-                camera.position.z = playerModel.position.z + behindDistance + shakeOffset.z;
-
-                // Look at player's upper body/head area
-                camera.lookAt(playerModel.position.x, playerModel.position.y + 1.5, playerModel.position.z);
             }
 
             // Only update UI for chase mode (score display)
