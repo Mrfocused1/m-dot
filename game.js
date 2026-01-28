@@ -815,7 +815,7 @@ const loadingProgress = {
     playerPickupAnim: false,
     playerThrowAnim: false,
     playerHoldingAnim: false,
-    playerFallAnim: false,
+    playerFallAnim: false, // Optional - loads in background, not required for game start
 
     // Enemy animations (critical for cinematic)
     enemyLookBehindAnim: false,
@@ -823,8 +823,8 @@ const loadingProgress = {
     enemyJumpAnim: false,
 
     update() {
-        // Count all critical assets (12 total)
-        const total = 12;
+        // Count all critical assets (11 total - fall animation is optional/non-blocking)
+        const total = 11;
         const loaded = (this.playerModel ? 1 : 0) +
                       (this.enemyModel ? 1 : 0) +
                       (this.colaCanModel ? 1 : 0) +
@@ -833,7 +833,7 @@ const loadingProgress = {
                       (this.playerPickupAnim ? 1 : 0) +
                       (this.playerThrowAnim ? 1 : 0) +
                       (this.playerHoldingAnim ? 1 : 0) +
-                      (this.playerFallAnim ? 1 : 0) +
+                      // playerFallAnim excluded - loads in background, optional
                       (this.enemyLookBehindAnim ? 1 : 0) +
                       (this.enemyDeathAnim ? 1 : 0) +
                       (this.enemyJumpAnim ? 1 : 0);
@@ -5574,6 +5574,7 @@ const EnvironmentManager = {
 // Check if Stage 1 assets are loaded and start game if ready
 function checkStage1AssetsLoaded() {
     // CRITICAL FIX: Check ALL assets are loaded, not just models
+    // Note: playerFallAnim is optional and loads in background - not required to start game
     const allAssetsLoaded = loadingProgress.playerModel &&
                            loadingProgress.enemyModel &&
                            loadingProgress.colaCanModel &&
@@ -5585,6 +5586,23 @@ function checkStage1AssetsLoaded() {
                            loadingProgress.enemyLookBehindAnim &&
                            loadingProgress.enemyDeathAnim &&
                            loadingProgress.enemyJumpAnim;
+
+    // Debug: Log which assets are missing if not all loaded
+    if (!allAssetsLoaded) {
+        const missing = [];
+        if (!loadingProgress.playerModel) missing.push('playerModel');
+        if (!loadingProgress.enemyModel) missing.push('enemyModel');
+        if (!loadingProgress.colaCanModel) missing.push('colaCanModel');
+        if (!loadingProgress.skyDome) missing.push('skyDome');
+        if (!loadingProgress.playerJumpAnim) missing.push('playerJumpAnim');
+        if (!loadingProgress.playerPickupAnim) missing.push('playerPickupAnim');
+        if (!loadingProgress.playerThrowAnim) missing.push('playerThrowAnim');
+        if (!loadingProgress.playerHoldingAnim) missing.push('playerHoldingAnim');
+        if (!loadingProgress.enemyLookBehindAnim) missing.push('enemyLookBehindAnim');
+        if (!loadingProgress.enemyDeathAnim) missing.push('enemyDeathAnim');
+        if (!loadingProgress.enemyJumpAnim) missing.push('enemyJumpAnim');
+        console.log('⏳ Waiting for assets:', missing.join(', '));
+    }
 
     if (allAssetsLoaded && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
         console.log('✅ ALL Stage 1 assets loaded (11/11), starting initialization...');
@@ -5923,7 +5941,8 @@ function loadPlayerFallAnimation() {
             checkStage1AssetsLoaded();
         }
     }, undefined, (error) => {
-        console.warn('Fall animation not loaded:', error);
+        console.warn('Fall animation not loaded (optional - game will continue):', error);
+        // Note: Fall animation is optional, game will use fallback behavior if not loaded
     });
 }
 
