@@ -822,6 +822,10 @@ const loadingProgress = {
     enemyDeathAnim: false,
     enemyJumpAnim: false,
 
+    // Timing for minimum loading duration
+    loadStartTime: null,
+    MIN_LOADING_TIME: 2000, // Show loading for at least 2 seconds for polish
+
     update() {
         // Count all critical assets (11 total - fall animation is optional/non-blocking)
         const total = 11;
@@ -870,6 +874,8 @@ const loadingProgress = {
 const IntroAnimation = {
     started: false,
     completed: false,
+    panelsSlid: false,
+    lastPercentage: -1,
 
     start() {
         if (this.started) return;
@@ -887,13 +893,22 @@ const IntroAnimation = {
 
         if (!left || !right || !vs || !text || !barContainer || !loader) return;
 
-        // 1. Panels slide in (800ms)
-        setTimeout(() => {
-            left.style.transition = 'transform 0.8s cubic-bezier(0.76, 0, 0.24, 1)';
-            right.style.transition = 'transform 0.8s cubic-bezier(0.76, 0, 0.24, 1)';
-            left.style.transform = 'translateX(0%)';
-            right.style.transform = 'translateX(0%)';
-        }, 100);
+        // 1. Panels slide in ONCE (800ms) - they should never move again after this
+        if (!this.panelsSlid) {
+            this.panelsSlid = true;
+            setTimeout(() => {
+                left.style.transition = 'transform 0.8s cubic-bezier(0.76, 0, 0.24, 1)';
+                right.style.transition = 'transform 0.8s cubic-bezier(0.76, 0, 0.24, 1)';
+                left.style.transform = 'translateX(0%)';
+                right.style.transform = 'translateX(0%)';
+
+                // After panels are in place, remove transition to prevent any future movement
+                setTimeout(() => {
+                    left.style.transition = 'none';
+                    right.style.transition = 'none';
+                }, 850);
+            }, 100);
+        }
 
         // 2. VS slam with elastic effect (at 900ms)
         setTimeout(() => {
@@ -938,10 +953,23 @@ const IntroAnimation = {
     },
 
     updateProgress(percentage) {
+        // Don't update if percentage hasn't changed (prevents unnecessary DOM updates)
+        if (this.lastPercentage === percentage) {
+            return;
+        }
+        this.lastPercentage = percentage;
+
         const bar = document.getElementById('intro-bar-fill');
         const percentText = document.getElementById('intro-percentage');
-        if (bar) bar.style.width = percentage + '%';
-        if (percentText) percentText.textContent = percentage + '%';
+
+        if (bar) {
+            // Use width for the progress bar (CSS transition handles smooth animation)
+            bar.style.width = percentage + '%';
+        }
+        if (percentText) {
+            // Text content update - element has min-width to prevent layout shift
+            percentText.textContent = percentage + '%';
+        }
     },
 
     complete() {
@@ -1146,7 +1174,8 @@ function startIntroSequence() {
     // Fade out VS loading screen
     IntroAnimation.complete();
 
-    // Wait for loading screen to fade (800ms fade + 100ms buffer)
+    // Wait for loading screen to fade PLUS extra buffer for first render
+    // Increased from 900ms to 1200ms for better settling time
     setTimeout(() => {
         // Set up cinematic camera position (far away, high angle)
         // Position: Behind and high, looking down at the player
@@ -1170,12 +1199,16 @@ function startIntroSequence() {
         if (playerModel) playerModel.visible = true;
         if (enemyModel) enemyModel.visible = true;
 
+        // Ensure at least one frame has been rendered before showing countdown
+        renderer.render(scene, camera);
+        console.log('First frame rendered, scene is ready');
+
         // Start countdown (3, 2, 1, GO) - takes ~2.4 seconds
         showCountdown(() => {
             // After "GO!", start camera zoom
             startCameraZoom();
         });
-    }, 900);
+    }, 1200);
 }
 
 function startCameraZoom() {
@@ -5869,6 +5902,43 @@ const EnvironmentManager = {
 // CHARACTER LOADING
 // ============================================================================
 
+// Verify all game assets are actually ready (deep check)
+function verifyAllAssetsReady() {
+    console.log('=== VERIFYING ALL ASSETS ARE READY ===');
+
+    const checks = {
+        playerModel: !!playerModel && playerModel.visible !== undefined,
+        enemyModel: !!enemyModel && enemyModel.visible !== undefined,
+        playerRunAnim: !!playerAnimations.run,
+        playerJumpAnim: !!playerAnimations.jump,
+        playerPickupAnim: !!playerAnimations.pickup,
+        playerThrowAnim: !!playerAnimations.throw,
+        playerHoldingAnim: !!playerAnimations.holding,
+        enemyRunAnim: !!enemyAnimations.run,
+        enemyDeathAnim: !!enemyAnimations.death,
+        enemyLookBehindAnim: !!enemyAnimations.lookBehind,
+        enemyJumpAnim: !!enemyAnimations.jump,
+        colaCanTemplate: !!colaCanTemplate,
+        skyDome: !!skyDome,
+        playerMixer: !!playerMixer,
+        enemyMixer: !!enemyMixer,
+        renderer: !!renderer,
+        scene: !!scene,
+        camera: !!camera
+    };
+
+    const allReady = Object.values(checks).every(v => v === true);
+
+    if (!allReady) {
+        const notReady = Object.keys(checks).filter(k => !checks[k]);
+        console.error('Some assets not ready:', notReady);
+        return false;
+    }
+
+    console.log('All assets verified ready');
+    return true;
+}
+
 // Check if Stage 1 assets are loaded and start game if ready
 function checkStage1AssetsLoaded() {
     // CRITICAL FIX: Check ALL assets are loaded, not just models
@@ -5885,6 +5955,19 @@ function checkStage1AssetsLoaded() {
                            loadingProgress.enemyDeathAnim &&
                            loadingProgress.enemyJumpAnim;
 
+    // Count loaded assets for progress
+    const loadedCount = (loadingProgress.playerModel ? 1 : 0) +
+                       (loadingProgress.enemyModel ? 1 : 0) +
+                       (loadingProgress.colaCanModel ? 1 : 0) +
+                       (loadingProgress.skyDome ? 1 : 0) +
+                       (loadingProgress.playerJumpAnim ? 1 : 0) +
+                       (loadingProgress.playerPickupAnim ? 1 : 0) +
+                       (loadingProgress.playerThrowAnim ? 1 : 0) +
+                       (loadingProgress.playerHoldingAnim ? 1 : 0) +
+                       (loadingProgress.enemyLookBehindAnim ? 1 : 0) +
+                       (loadingProgress.enemyDeathAnim ? 1 : 0) +
+                       (loadingProgress.enemyJumpAnim ? 1 : 0);
+
     // Debug: Log which assets are missing if not all loaded
     if (!allAssetsLoaded) {
         const missing = [];
@@ -5899,11 +5982,35 @@ function checkStage1AssetsLoaded() {
         if (!loadingProgress.enemyLookBehindAnim) missing.push('enemyLookBehindAnim');
         if (!loadingProgress.enemyDeathAnim) missing.push('enemyDeathAnim');
         if (!loadingProgress.enemyJumpAnim) missing.push('enemyJumpAnim');
-        console.log('⏳ Waiting for assets:', missing.join(', '));
+        console.log('Waiting for assets:', missing.join(', '));
     }
 
     if (allAssetsLoaded && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
-        console.log('✅ ALL Stage 1 assets loaded (11/11), starting initialization...');
+        // === COMPREHENSIVE LOADING STATE DEBUG ===
+        console.log('=== LOADING STATE DEBUG ===');
+        console.log('Loaded count:', loadedCount);
+        console.log('Expected:', 11);
+        console.log('Player model loaded:', !!playerModel);
+        console.log('Enemy model loaded:', !!enemyModel);
+        console.log('Player animations loaded:', {
+            run: !!playerAnimations.run,
+            jump: !!playerAnimations.jump,
+            pickup: !!playerAnimations.pickup,
+            throw: !!playerAnimations.throw,
+            holding: !!playerAnimations.holding
+        });
+        console.log('Enemy animations loaded:', {
+            run: !!enemyAnimations.run,
+            death: !!enemyAnimations.death,
+            lookBehind: !!enemyAnimations.lookBehind,
+            jump: !!enemyAnimations.jump
+        });
+        console.log('Sky dome loaded:', !!skyDome);
+        console.log('Cola can template loaded:', !!colaCanTemplate);
+        console.log('Player mixer ready:', !!playerMixer);
+        console.log('Enemy mixer ready:', !!enemyMixer);
+
+        console.log('ALL Stage 1 assets loaded (11/11), starting initialization...');
         console.time('Total Stage 1 Init');
 
         // === STEP 1: Pre-compile shaders BEFORE fading out loading screen ===
@@ -5911,7 +6018,7 @@ function checkStage1AssetsLoaded() {
         console.time('Shader Compilation');
         if (renderer && scene && camera) {
             renderer.compile(scene, camera);
-            console.log('🎨 Shaders pre-compiled');
+            console.log('Shaders pre-compiled');
         }
         console.timeEnd('Shader Compilation');
 
@@ -5920,22 +6027,41 @@ function checkStage1AssetsLoaded() {
         warmupStage1Animations();
         console.timeEnd('Animation Warmup');
 
-        // === STEP 3: Force a few render frames while loading screen is still visible ===
-        // This ensures GPU has processed all textures and geometry
+        // === STEP 3: Force render frames while loading screen is still visible ===
+        // Increased from 3 to 5 frames for better GPU warmup
         console.time('GPU Warmup');
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 5; i++) {
             renderer.render(scene, camera);
         }
-        console.log('🔥 GPU warmed up with pre-renders');
+        console.log('GPU warmed up with 5 pre-renders');
         console.timeEnd('GPU Warmup');
 
         console.timeEnd('Total Stage 1 Init');
 
-        // === STEP 4: Start the intro sequence (countdown + camera zoom) ===
-        // Wait a moment, then start intro
+        // === STEP 4: Calculate remaining time for minimum loading duration ===
+        const elapsed = loadingProgress.loadStartTime ? Date.now() - loadingProgress.loadStartTime : 0;
+        const remaining = Math.max(0, loadingProgress.MIN_LOADING_TIME - elapsed);
+        console.log(`Assets loaded in ${elapsed}ms, waiting ${remaining}ms more for minimum loading time`);
+
+        // === STEP 5: Wait for minimum loading time + verification before starting intro ===
         setTimeout(() => {
-            startIntroSequence();
-        }, 100);
+            // Final verification check
+            if (verifyAllAssetsReady()) {
+                console.log('All initialization complete, starting intro sequence');
+                startIntroSequence();
+            } else {
+                console.error('Assets not ready - delaying intro start');
+                // Try again after another delay
+                setTimeout(() => {
+                    if (verifyAllAssetsReady()) {
+                        startIntroSequence();
+                    } else {
+                        console.error('Assets still not ready - forcing start anyway');
+                        startIntroSequence();
+                    }
+                }, 1000);
+            }
+        }, remaining + 500); // Add 500ms buffer after minimum time
     }
 }
 
@@ -9235,7 +9361,7 @@ function startGame() {
         console.time('Shader Compilation');
         if (renderer && scene && camera) {
             renderer.compile(scene, camera);
-            console.log('🎨 Shaders pre-compiled');
+            console.log('Shaders pre-compiled');
         }
         console.timeEnd('Shader Compilation');
 
@@ -9246,23 +9372,32 @@ function startGame() {
         }
         console.timeEnd('Animation Warmup');
 
-        // === STEP 3: GPU warmup renders ===
+        // === STEP 3: GPU warmup renders (increased from 3 to 5) ===
         console.time('GPU Warmup');
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 5; i++) {
             renderer.render(scene, camera);
         }
-        console.log('🔥 GPU warmed up with pre-renders');
+        console.log('GPU warmed up with 5 pre-renders');
         console.timeEnd('GPU Warmup');
 
         console.timeEnd('Total Stage 1 Init (Replay)');
 
         // Start the intro sequence (countdown + camera zoom)
+        // Increased delay from 100ms to 500ms for better settling
         setTimeout(() => {
-            startIntroSequence();
-        }, 100);
+            if (verifyAllAssetsReady()) {
+                startIntroSequence();
+            } else {
+                console.error('Assets not ready on replay - starting anyway');
+                startIntroSequence();
+            }
+        }, 500);
     } else {
         // Load characters if needed - game will start when both are loaded
         console.log('Loading Stage 1 characters...');
+
+        // Track when loading started for minimum loading time
+        loadingProgress.loadStartTime = Date.now();
 
         // Load Jammer character for Level 1 if not already loaded
         if (!playerModel) {
