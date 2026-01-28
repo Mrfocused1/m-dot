@@ -1763,6 +1763,13 @@ const PlayerController = {
                 this.endThrowCameraFollow();
             }
         }
+
+        // MOBILE FIX: Spin the held can during throw animation for visual feedback
+        // This makes the can visible and spinning while the throw animation plays
+        if (this.isThrowing && heldCanModel) {
+            heldCanModel.rotation.x += 0.3;
+            heldCanModel.rotation.y += 0.2;
+        }
     },
 
     checkAutoJump() {
