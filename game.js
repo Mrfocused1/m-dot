@@ -593,17 +593,19 @@ loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
     IntroAnimation.updateProgress(progress);
 };
 loadingManager.onLoad = () => {
-    console.log('✅ All assets loaded!');
+    console.log('✅ All shared assets loaded!');
     assetsLoaded = true;
 
-    // Complete intro animation if it was running
-    if (IntroAnimation.started && !IntroAnimation.completed) {
+    // NOTE: For Level 1 (chase mode), IntroAnimation.complete() is called by
+    // checkStage1AssetsLoaded() after ALL 11 assets are loaded and initialized.
+    // Only complete intro here for non-chase modes (like START screen).
+    if (IntroAnimation.started && !IntroAnimation.completed && GameState.selectedLevel !== 'chase') {
         setTimeout(() => {
             IntroAnimation.complete();
         }, 500);
     }
 
-    // Show UI now that loading is complete
+    // Show UI now that loading is complete (for START screen only)
     setTimeout(() => {
         if (GameState.screen === 'START') {
             UI.updateUI();
@@ -5557,46 +5559,137 @@ function checkStage1AssetsLoaded() {
                            loadingProgress.enemyJumpAnim;
 
     if (allAssetsLoaded && GameState.selectedLevel === 'chase' && !GameState.isRunning) {
-        console.log('✅ ALL Stage 1 assets loaded (11/11), starting game');
+        console.log('✅ ALL Stage 1 assets loaded (11/11), starting initialization...');
+        console.time('Total Stage 1 Init');
 
-        // Fade out intro animation if present
-        IntroAnimation.complete();
-
-        GameState.isRunning = true;
-        UI.updateUI();
-
-        // Expose game objects to window for testing/debugging
-        // Use getters for variables that change at runtime
-        Object.defineProperty(window, 'playerModel', { get: () => playerModel });
-        Object.defineProperty(window, 'enemyModel', { get: () => enemyModel });
-        Object.defineProperty(window, 'colaCanTemplate', { get: () => colaCanTemplate });
-        Object.defineProperty(window, 'heldCanModel', { get: () => heldCanModel });
-        window.PlayerController = PlayerController;
-        window.pickups = pickups;
-        window.obstacles = obstacles;
-        window.GameState = GameState;
-        Object.defineProperty(window, 'camera', { get: () => camera });
-        Object.defineProperty(window, 'scene', { get: () => scene });
-        console.log('🔧 Game objects exposed to window for testing (with getters for dynamic values)');
-
-        // If in preload mode, notify parent window
-        const urlParams = new URLSearchParams(window.location.search);
-        const isPreloading = urlParams.get('preload') === 'true';
-        if (isPreloading && window.parent) {
-            console.log('📡 Sending GAME_FULLY_LOADED message to parent (all 11 assets verified)');
-            window.parent.postMessage({ type: 'GAME_FULLY_LOADED' }, '*');
-        } else {
-            // Normal game start - enable pickups after 2 seconds
-            setTimeout(() => {
-                pickupsEnabled = true;
-            }, 2000);
-
-            // Start music after a brief delay to ensure everything is ready
-            setTimeout(() => {
-                MusicController.playLevel1Music();
-            }, 100);
+        // === STEP 1: Pre-compile shaders BEFORE fading out loading screen ===
+        // This prevents the freeze on first frame render
+        console.time('Shader Compilation');
+        if (renderer && scene && camera) {
+            renderer.compile(scene, camera);
+            console.log('🎨 Shaders pre-compiled');
         }
+        console.timeEnd('Shader Compilation');
+
+        // === STEP 2: Warm up animations to prevent first-play lag ===
+        console.time('Animation Warmup');
+        warmupStage1Animations();
+        console.timeEnd('Animation Warmup');
+
+        // === STEP 3: Force a few render frames while loading screen is still visible ===
+        // This ensures GPU has processed all textures and geometry
+        console.time('GPU Warmup');
+        for (let i = 0; i < 3; i++) {
+            renderer.render(scene, camera);
+        }
+        console.log('🔥 GPU warmed up with pre-renders');
+        console.timeEnd('GPU Warmup');
+
+        console.timeEnd('Total Stage 1 Init');
+
+        // === STEP 4: Small delay to let any async work settle ===
+        setTimeout(() => {
+            // NOW fade out the intro animation
+            IntroAnimation.complete();
+
+            // === STEP 5: Buffer delay before starting gameplay ===
+            // Loading screen takes 500ms + 800ms fade = ~1300ms
+            // Start gameplay smoothly after fade completes
+            setTimeout(() => {
+                console.log('🎮 Starting gameplay NOW');
+                GameState.isRunning = true;
+                UI.updateUI();
+
+                // Expose game objects to window for testing/debugging
+                // Use getters for variables that change at runtime
+                Object.defineProperty(window, 'playerModel', { get: () => playerModel });
+                Object.defineProperty(window, 'enemyModel', { get: () => enemyModel });
+                Object.defineProperty(window, 'colaCanTemplate', { get: () => colaCanTemplate });
+                Object.defineProperty(window, 'heldCanModel', { get: () => heldCanModel });
+                window.PlayerController = PlayerController;
+                window.pickups = pickups;
+                window.obstacles = obstacles;
+                window.GameState = GameState;
+                Object.defineProperty(window, 'camera', { get: () => camera });
+                Object.defineProperty(window, 'scene', { get: () => scene });
+                console.log('🔧 Game objects exposed to window for testing (with getters for dynamic values)');
+
+                // If in preload mode, notify parent window
+                const urlParams = new URLSearchParams(window.location.search);
+                const isPreloading = urlParams.get('preload') === 'true';
+                if (isPreloading && window.parent) {
+                    console.log('📡 Sending GAME_FULLY_LOADED message to parent (all 11 assets verified)');
+                    window.parent.postMessage({ type: 'GAME_FULLY_LOADED' }, '*');
+                } else {
+                    // Normal game start - enable pickups after 2 seconds
+                    setTimeout(() => {
+                        pickupsEnabled = true;
+                    }, 2000);
+
+                    // Start music after a brief delay to ensure everything is ready
+                    setTimeout(() => {
+                        MusicController.playLevel1Music();
+                    }, 100);
+                }
+            }, 1400); // Wait for loading screen fade (500ms wait + 800ms fade + 100ms buffer)
+        }, 100); // Small initial delay for any async settling
     }
+}
+
+// Warm up Stage 1 animations to prevent first-play lag
+function warmupStage1Animations() {
+    console.log('🔥 Warming up Stage 1 animations...');
+
+    // Warm up player animations
+    if (playerMixer && playerAnimations) {
+        // Play each animation briefly and force an update
+        Object.keys(playerAnimations).forEach(animName => {
+            const anim = playerAnimations[animName];
+            if (anim && typeof anim.play === 'function') {
+                const wasRunning = anim.isRunning();
+                if (!wasRunning) {
+                    anim.reset();
+                    anim.play();
+                }
+                playerMixer.update(0.001); // Tiny update to initialize
+                if (!wasRunning) {
+                    anim.stop();
+                }
+            }
+        });
+        // Ensure run animation is playing (it should be the default)
+        if (playerAnimations.run && !playerAnimations.run.isRunning()) {
+            playerAnimations.run.reset();
+            playerAnimations.run.play();
+        }
+        console.log('   Player animations warmed up');
+    }
+
+    // Warm up enemy animations
+    if (enemyMixer && enemyAnimations) {
+        Object.keys(enemyAnimations).forEach(animName => {
+            const anim = enemyAnimations[animName];
+            if (anim && typeof anim.play === 'function') {
+                const wasRunning = anim.isRunning();
+                if (!wasRunning) {
+                    anim.reset();
+                    anim.play();
+                }
+                enemyMixer.update(0.001); // Tiny update to initialize
+                if (!wasRunning) {
+                    anim.stop();
+                }
+            }
+        });
+        // Ensure run animation is playing (it should be the default)
+        if (enemyAnimations.run && !enemyAnimations.run.isRunning()) {
+            enemyAnimations.run.reset();
+            enemyAnimations.run.play();
+        }
+        console.log('   Enemy animations warmed up');
+    }
+
+    console.log('✅ Stage 1 animation warmup complete');
 }
 
 function loadPlayerCharacter() {
@@ -8746,24 +8839,54 @@ function startGame() {
     const charactersAlreadyLoaded = playerModel && enemyModel;
 
     if (charactersAlreadyLoaded) {
-        // Characters already loaded, start game immediately
-        console.log('Stage 1 assets already loaded, starting immediately');
+        // Characters already loaded, but still need initialization
+        console.log('Stage 1 assets already loaded, performing initialization...');
+        console.time('Total Stage 1 Init (Replay)');
+
+        // === STEP 1: Pre-compile shaders ===
+        console.time('Shader Compilation');
+        if (renderer && scene && camera) {
+            renderer.compile(scene, camera);
+            console.log('🎨 Shaders pre-compiled');
+        }
+        console.timeEnd('Shader Compilation');
+
+        // === STEP 2: Warm up animations ===
+        console.time('Animation Warmup');
+        if (typeof warmupStage1Animations === 'function') {
+            warmupStage1Animations();
+        }
+        console.timeEnd('Animation Warmup');
+
+        // === STEP 3: GPU warmup renders ===
+        console.time('GPU Warmup');
+        for (let i = 0; i < 3; i++) {
+            renderer.render(scene, camera);
+        }
+        console.log('🔥 GPU warmed up with pre-renders');
+        console.timeEnd('GPU Warmup');
+
+        console.timeEnd('Total Stage 1 Init (Replay)');
 
         // Fade out intro animation if present
         IntroAnimation.complete();
 
-        GameState.isRunning = true;
-        UI.updateUI();
-
-        // Enable pickups after 2 seconds (game is now visible)
+        // Small delay before starting gameplay for smooth transition
         setTimeout(() => {
-            pickupsEnabled = true;
-        }, 2000);
+            console.log('🎮 Starting gameplay NOW');
+            GameState.isRunning = true;
+            UI.updateUI();
 
-        // Start music after a brief delay to ensure everything is ready
-        setTimeout(() => {
-            MusicController.playLevel1Music();
-        }, 100);
+            // Enable pickups after 2 seconds (game is now visible)
+            setTimeout(() => {
+                pickupsEnabled = true;
+            }, 2000);
+
+            // Start music after a brief delay to ensure everything is ready
+            setTimeout(() => {
+                MusicController.playLevel1Music();
+            }, 100);
+        }, 1400); // Wait for loading screen fade
     } else {
         // Load characters if needed - game will start when both are loaded
         console.log('Loading Stage 1 characters...');
