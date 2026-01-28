@@ -2504,18 +2504,18 @@ const PlayerController = {
         if (this.throwResultShown) return; // Only show once per throw
         this.throwResultShown = true;
 
-        // Clear the throw timeout - we'll handle cleanup in fadeAndReturnToGameplay
+        console.log(hit ? '✅ SHOWING HIT RESULT' : '❌ SHOWING MISS RESULT');
+
+        // Clear the throw timeout
         if (this.throwTimeout) {
             clearTimeout(this.throwTimeout);
             this.throwTimeout = null;
-            console.log('🎯 Cleared throw timeout - cinematic sequence will handle cleanup');
+            console.log('🎯 Cleared throw timeout');
         }
 
-        // Hide player model during victory text display
-        if (playerModel) {
-            playerModel.visible = false;
-            console.log('👤 Player hidden during "Got em!" text');
-        }
+        // STOP ALL MOVEMENT IMMEDIATELY
+        GameState.gameSpeed = 0;
+        GameState.stageFrozen = true;
 
         // Create overlay for throw result
         const overlay = document.createElement('div');
@@ -2556,10 +2556,28 @@ const PlayerController = {
             text.style.transform = 'scale(1)';
         }, 50);
 
-        // Hold briefly, then fade screen and return to gameplay
+        // After displaying message, do FULL REFRESH (not fade)
+        // Hit gets 1.5 seconds, Miss gets 1 second
+        const displayTime = hit ? 1500 : 1000;
+
         setTimeout(() => {
-            this.fadeAndReturnToGameplay(overlay);
-        }, 800);
+            console.log('🔄 Removing result overlay and doing full refresh');
+
+            // Remove the overlay
+            if (overlay && overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+
+            // Check if enemy is defeated (don't refresh if victory)
+            if (hit && EnemyController.health <= 0) {
+                console.log('🎉 Enemy defeated - not refreshing, showing victory');
+                // Victory is handled by EnemyController.onDefeated()
+                return;
+            }
+
+            // DO FULL GAME REFRESH - resets everything to fresh state
+            fullGameRefresh();
+        }, displayTime);
     },
 
     fadeAndReturnToGameplay(resultOverlay) {
@@ -2754,6 +2772,140 @@ function resetEnemyToSpawn() {
     enemyLookBehindTriggered = false;
 
     console.log('✅ Enemy fully reset: skeleton restored, run animation playing from frame 0');
+}
+
+// ============================================================================
+// FULL GAME REFRESH - Complete reset after miss/hit/obstacle events
+// ============================================================================
+
+function fullGameRefresh() {
+    console.log('🔄 FULL GAME REFRESH - Resetting everything to fresh state');
+
+    // 1. STOP ALL MOVEMENT
+    GameState.gameSpeed = 0;
+    GameState.stageFrozen = true;
+    GameState.timeScale = 1.0;
+
+    // 2. STOP SKY ROTATION (reset rotation to prevent drift)
+    if (skyDome) {
+        // Sky rotation is controlled in update loop - stageFrozen will stop it
+        console.log('🌍 Sky rotation stopped (stageFrozen=true)');
+    }
+
+    // 3. FORCE STOP ALL ENEMY ANIMATIONS
+    if (enemyMixer) {
+        enemyMixer.stopAllAction();
+        console.log('🎬 Stopped all enemy animations via mixer');
+    }
+
+    // 4. FORCE RESET ENEMY POSITION AND STATE
+    if (enemyModel) {
+        // Hard reset position
+        enemyModel.position.set(0, 1.0, -20);
+        enemyModel.rotation.y = Math.PI;
+        enemyModel.scale.set(0.01, 0.01, 0.01);
+
+        // Clear any velocity/physics
+        if (enemyModel.userData) {
+            enemyModel.userData.velocity = null;
+            enemyModel.userData.falling = false;
+            enemyModel.userData.isJumping = false;
+        }
+        console.log('👤 Enemy model position reset to spawn');
+    }
+
+    // 5. RESET ENEMY CONTROLLER STATE
+    EnemyController.currentLane = 1;
+    EnemyController.targetLane = 1;
+    EnemyController.isRunningAway = false;
+    EnemyController.isJumping = false;
+    EnemyController.laneChangeTimer = 0;
+    // Note: Don't reset health here - that persists across rounds
+
+    // 6. RESET ALL ENEMY ANIMATIONS AND FORCE START RUN
+    if (enemyAnimations) {
+        // Stop and disable all non-run animations
+        if (enemyAnimations.death) {
+            enemyAnimations.death.stop();
+            enemyAnimations.death.reset();
+            enemyAnimations.death.enabled = false;
+            enemyAnimations.death.time = 0;
+            enemyAnimations.death.setEffectiveWeight(0);
+        }
+        if (enemyAnimations.lookBehind) {
+            enemyAnimations.lookBehind.stop();
+            enemyAnimations.lookBehind.reset();
+            enemyAnimations.lookBehind.enabled = false;
+            enemyAnimations.lookBehind.setEffectiveWeight(0);
+        }
+        if (enemyAnimations.jump) {
+            enemyAnimations.jump.stop();
+            enemyAnimations.jump.reset();
+            enemyAnimations.jump.enabled = false;
+            enemyAnimations.jump.setEffectiveWeight(0);
+        }
+
+        // FORCE START RUN ANIMATION
+        if (enemyAnimations.run) {
+            enemyAnimations.run.stop();
+            enemyAnimations.run.reset();
+            enemyAnimations.run.time = 0;
+            enemyAnimations.run.enabled = true;
+            enemyAnimations.run.setEffectiveWeight(1);
+            enemyAnimations.run.setEffectiveTimeScale(1);
+            enemyAnimations.run.play();
+            console.log('🏃 Enemy run animation forced to play');
+        }
+    }
+
+    // Reset look-behind trigger
+    enemyLookBehindTriggered = false;
+
+    // 7. RESET PLAYER STATE
+    PlayerController.isThrowing = false;
+    PlayerController.hasItem = false;
+    PlayerController.isPickingUp = false;
+    PlayerController.isJumping = false;
+    PlayerController.cinematicThrowActive = false;
+    PlayerController.isFollowingThrowItem = false;
+    PlayerController.isFollowingEnemyReaction = false;
+    PlayerController.throwResultShown = false;
+    PlayerController.cameraShakeActive = false;
+    PlayerController.cameraShakeIntensity = 0;
+    PlayerController.throwTimeScale = 1.0;
+    PlayerController.activeThrownItem = null;
+
+    // 8. CLEAR THROW TIMEOUT
+    if (PlayerController.throwTimeout) {
+        clearTimeout(PlayerController.throwTimeout);
+        PlayerController.throwTimeout = null;
+    }
+
+    // 9. RESET INPUT SYSTEM
+    Input.touchActive = false;
+    Input.inputProcessed = false;
+    Input.touchSide = null;
+    Input.wasSwipe = false;
+
+    // 10. RESTORE PLAYER VISIBILITY AND ANIMATION
+    if (playerModel) {
+        playerModel.visible = true;
+    }
+    PlayerController.switchToRunAnimation();
+
+    // 11. SHOW ALL PICKUPS AGAIN
+    pickups.forEach(pickup => {
+        if (pickup.mesh && pickup.active) {
+            pickup.mesh.visible = true;
+        }
+    });
+
+    // 12. RESTART GAME MOVEMENT
+    GameState.gameSpeed = GAME_SPEED;
+    GameState.timeScale = 1.0;
+    GameState.stageFrozen = false;
+
+    console.log('✅ Full refresh complete - game speed:', GameState.gameSpeed, 'stageFrozen:', GameState.stageFrozen);
 }
 
 // ============================================================================
@@ -8211,8 +8363,7 @@ function handlePlayerHit() {
     // Play hit sound effect
     SoundController.playHitSound();
 
-    // Freeze game
-    const savedSpeed = GameState.gameSpeed;
+    // STOP ALL MOVEMENT IMMEDIATELY
     GameState.gameSpeed = 0;
     GameState.stageFrozen = true;
 
@@ -8231,13 +8382,15 @@ function handlePlayerHit() {
         </div>
     `;
 
-    // Resume after 2 seconds
+    // After 2 seconds, clear overlay and do FULL GAME REFRESH
     setTimeout(() => {
+        console.log('🔄 Clearing obstacle warning and doing full refresh');
         overlay.innerHTML = '';
-        GameState.gameSpeed = savedSpeed;
-        GameState.stageFrozen = false;
 
-        // Give player brief invincibility
+        // DO FULL GAME REFRESH - resets everything to fresh state
+        fullGameRefresh();
+
+        // Give player brief invincibility after refresh
         PlayerController.isInvincible = true;
         PlayerController.invincibilityTimer = 2;
     }, 2000);
@@ -8754,8 +8907,12 @@ function animate() {
     }
 
     // Rotate sky dome for motion illusion (only in Level 1)
+    // CRITICAL: Stop rotation when stageFrozen (during miss/hit/obstacle events)
     if (skyDome && SKY_DOME_CONFIG.enabled && GameState.selectedLevel === 'chase') {
-        skyDome.rotation.y += SKY_DOME_CONFIG.rotationSpeed;
+        // Only rotate if stage is NOT frozen
+        if (!GameState.stageFrozen) {
+            skyDome.rotation.y += SKY_DOME_CONFIG.rotationSpeed;
+        }
 
         // Make sky dome follow camera (stay centered on player)
         skyDome.position.x = camera.position.x;
