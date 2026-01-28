@@ -1654,6 +1654,15 @@ const PlayerController = {
     isFollowingEnemyReaction: false, // Camera close-up on enemy hit reaction
     throwCameraTimer: 0, // Timer for camera follow duration
     throwResultShown: false, // Whether we've shown the throw result text
+    // Cinematic throw camera properties
+    cinematicThrowActive: false,
+    throwStartPosition: null, // Player position when throw started
+    throwTargetPosition: null, // Enemy position when throw started
+    cinematicCameraTarget: { x: 0, y: 0, z: 0 }, // Smoothed camera target
+    cinematicCameraPosition: { x: 0, y: 0, z: 0 }, // Smoothed camera position
+    throwVelocity: { x: 0, y: 0, z: 0 }, // Projectile velocity for arc physics
+    throwGravity: -15, // Gravity for arc trajectory
+    throwTimeScale: 1.0, // Time scale during throw (for slow motion)
 
     init() {
         this.currentLane = 1;
@@ -1677,6 +1686,17 @@ const PlayerController = {
         this.throwResultShown = false;
         this.throwingCanModel = null; // MOBILE FIX: World-space can shown during throw animation
         this._throwDebugCounter = 0;   // Debug counter for logging
+        // Reset cinematic throw properties
+        this.cinematicThrowActive = false;
+        this.throwStartPosition = null;
+        this.throwTargetPosition = null;
+        this.cinematicCameraTarget = { x: 0, y: 0, z: 0 };
+        this.cinematicCameraPosition = { x: 0, y: 0, z: 0 };
+        this.throwVelocity = { x: 0, y: 0, z: 0 };
+        this.throwTimeScale = 1.0;
+        // Reset camera shake
+        this.cameraShakeActive = false;
+        this.cameraShakeIntensity = 0;
         // Clear any existing throw timeout
         if (this.throwTimeout) {
             clearTimeout(this.throwTimeout);
@@ -2198,16 +2218,16 @@ const PlayerController = {
         // CRITICAL FIX: Remove the world-space throwing can now that projectile is being created
         // The throwingCanModel was added to scene (not playerModel) for proper visibility during throw animation
         if (this.throwingCanModel) {
-            console.log('🥤 Removing throwing can from scene (at 95% of throw animation)');
+            console.log('Removing throwing can from scene (at 95% of throw animation)');
             scene.remove(this.throwingCanModel);
             this.throwingCanModel = null;
             this._throwDebugCounter = 0; // Reset debug counter
-            console.log('🥤 Throwing can removed - projectile taking over');
+            console.log('Throwing can removed - projectile taking over');
         }
 
         // Also clean up any legacy heldCanModel (shouldn't exist but just in case)
         if (heldCanModel && playerModel) {
-            console.warn('⚠️ Legacy heldCanModel found - cleaning up');
+            console.warn('Legacy heldCanModel found - cleaning up');
             playerModel.remove(heldCanModel);
             heldCanModel = null;
         }
@@ -2220,12 +2240,14 @@ const PlayerController = {
         // Use cola can model if available, otherwise fall back to golden sphere
         if (colaCanTemplate) {
             thrownItem = colaCanTemplate.clone();
-            // REDUCED SIZE: Scale down to 0.8 instead of 1.5 (less obtrusive, easier to see enemy)
-            thrownItem.scale.set(0.8, 0.8, 0.8);
-            console.log('🥤 Throwing cola can (scale: 0.8)');
+            // REALISTIC SIZE: Cola can is ~12cm tall, character is ~180cm (1.8 game units at scale 0.01)
+            // Character at scale 0.01 means 1 game unit = 100cm, so can should be ~0.12 units
+            // But we need it visible, so scale to 0.25 (slightly larger for visibility with trail)
+            thrownItem.scale.set(0.25, 0.25, 0.25);
+            console.log('Throwing cola can (realistic scale: 0.25)');
         } else {
             // Fallback: Create a golden sphere as the thrown item
-            const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const geometry = new THREE.SphereGeometry(0.15, 16, 16);
             const material = new THREE.MeshStandardMaterial({
                 color: 0xffd700,
                 emissive: 0xffd700,
@@ -2234,12 +2256,13 @@ const PlayerController = {
                 roughness: 0.2
             });
             thrownItem = new THREE.Mesh(geometry, material);
-            console.log('🎯 Throwing sphere (cola can not loaded)');
+            console.log('Throwing sphere (cola can not loaded)');
         }
 
-        // Position at player's hand
+        // Position at player's hand (slightly in front and above)
         thrownItem.position.copy(playerModel.position);
-        thrownItem.position.y += 2; // Slightly above player
+        thrownItem.position.y += 2.0; // At shoulder height
+        thrownItem.position.z -= 0.5; // Slightly in front
 
         // CRITICAL: Ensure thrown item is always visible
         thrownItem.visible = true;
@@ -2256,25 +2279,99 @@ const PlayerController = {
             }
         });
 
+        // Add a glowing trail effect for visibility (small point light attached to can)
+        const trailLight = new THREE.PointLight(0xff4444, 2, 5);
+        trailLight.position.set(0, 0, 0);
+        thrownItem.add(trailLight);
+        thrownItem.userData.trailLight = trailLight;
+
         scene.add(thrownItem);
-        console.log('🥤 Thrown item added to scene, visible:', thrownItem.visible);
+        console.log('Thrown item added to scene, visible:', thrownItem.visible);
 
         // Store reference for camera follow
         this.activeThrownItem = thrownItem;
         this.isFollowingThrowItem = true;
         this.throwCameraTimer = 0;
 
+        // ============================================
+        // CINEMATIC THROW CAMERA SYSTEM
+        // ============================================
+
+        // Store start and target positions for cinematic camera
+        this.throwStartPosition = playerModel.position.clone();
+        this.throwTargetPosition = enemyModel ? enemyModel.position.clone() : new THREE.Vector3(0, 1, -50);
+        this.cinematicThrowActive = true;
+
+        // Apply slight slow motion for dramatic effect during throw
+        this.throwTimeScale = 0.6; // 60% speed for dramatic effect
+        GameState.timeScale = this.throwTimeScale;
+        console.log('CINEMATIC MODE: Slow motion activated (60% speed)');
+
+        // Initialize cinematic camera position (to the side of the action)
+        const throwDirection = new THREE.Vector3().subVectors(this.throwTargetPosition, this.throwStartPosition).normalize();
+        const sideVector = new THREE.Vector3(-throwDirection.z, 0, throwDirection.x).normalize(); // Perpendicular
+        const midpoint = new THREE.Vector3().addVectors(this.throwStartPosition, this.throwTargetPosition).multiplyScalar(0.5);
+
+        // Camera starts to the side, at a good height to see the arc
+        const cinematicDistance = 12; // Distance from midpoint
+        const cinematicHeight = 4; // Height above action
+        this.cinematicCameraPosition = {
+            x: midpoint.x + sideVector.x * cinematicDistance,
+            y: midpoint.y + cinematicHeight,
+            z: midpoint.z + sideVector.z * cinematicDistance
+        };
+        this.cinematicCameraTarget = {
+            x: thrownItem.position.x,
+            y: thrownItem.position.y,
+            z: thrownItem.position.z
+        };
+
         // Store the lane (X position) the item was thrown from
         const throwLaneX = thrownItem.position.x;
-
-        // Animate the throw
-        const throwSpeed = 25; // Speed of thrown item (reduced from 40 for better visibility)
         const throwStartZ = thrownItem.position.z;
-        const throwDistance = 50; // Distance to travel
 
-        // Debug: Log initial positions
-        console.log(`🎯 Throw started - Item at Z: ${thrownItem.position.z.toFixed(2)}, Enemy at Z: ${enemyModel ? enemyModel.position.z.toFixed(2) : 'N/A'}, Distance: ${enemyModel ? thrownItem.position.distanceTo(enemyModel.position).toFixed(2) : 'N/A'}`);
+        // ============================================
+        // ARC PHYSICS SETUP - Calculate velocity for parabolic trajectory
+        // ============================================
 
+        // Get enemy position (or default target)
+        const targetPos = enemyModel ? enemyModel.position.clone() : new THREE.Vector3(throwLaneX, 1.5, -30);
+        targetPos.y += 1.5; // Aim at enemy's chest/head level
+
+        // Calculate horizontal distance and direction
+        const dx = targetPos.x - thrownItem.position.x;
+        const dz = targetPos.z - thrownItem.position.z;
+        const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+
+        // Time of flight (adjust for dramatic arc)
+        const flightTime = 1.2; // 1.2 seconds for nice arc
+
+        // Calculate initial velocities for arc trajectory
+        // Horizontal velocity: distance / time
+        const vx = dx / flightTime;
+        const vz = dz / flightTime;
+
+        // Vertical velocity: solve for initial vy to hit target
+        // y = y0 + vy*t + 0.5*g*t^2
+        // Target height = start height + vy*t + 0.5*gravity*t^2
+        const dy = targetPos.y - thrownItem.position.y;
+        const gravity = this.throwGravity; // -15
+        // vy = (dy - 0.5*g*t^2) / t
+        const vy = (dy - 0.5 * gravity * flightTime * flightTime) / flightTime;
+
+        // Store velocity
+        this.throwVelocity = { x: vx, y: vy, z: vz };
+
+        console.log(`CINEMATIC THROW: Arc physics initialized`);
+        console.log(`  Start: (${thrownItem.position.x.toFixed(2)}, ${thrownItem.position.y.toFixed(2)}, ${thrownItem.position.z.toFixed(2)})`);
+        console.log(`  Target: (${targetPos.x.toFixed(2)}, ${targetPos.y.toFixed(2)}, ${targetPos.z.toFixed(2)})`);
+        console.log(`  Velocity: (${vx.toFixed(2)}, ${vy.toFixed(2)}, ${vz.toFixed(2)})`);
+        console.log(`  Flight time: ${flightTime}s, Distance: ${horizontalDistance.toFixed(2)}`);
+
+        // Track flight progress
+        let flightElapsed = 0;
+        const maxFlightTime = 3.0; // Max flight time before giving up (miss)
+        let lastTime = performance.now();
 
         const animateThrow = () => {
             if (!thrownItem.parent) {
@@ -2283,25 +2380,65 @@ const PlayerController = {
                 return;
             }
 
-            // Move forward
-            thrownItem.position.z -= throwSpeed * 0.016; // Approximate 60fps
+            // Calculate delta time with time scale
+            const now = performance.now();
+            const rawDt = (now - lastTime) / 1000;
+            const dt = rawDt * this.throwTimeScale; // Apply slow motion
+            lastTime = now;
+            flightElapsed += dt;
 
-            // Rotate for effect
-            thrownItem.rotation.x += 0.2;
-            thrownItem.rotation.y += 0.15;
+            // ============================================
+            // ARC PHYSICS UPDATE
+            // ============================================
 
-            // Check collision with enemy FIRST (before distance check)
+            // Update velocity with gravity
+            this.throwVelocity.y += this.throwGravity * dt;
+
+            // Update position
+            thrownItem.position.x += this.throwVelocity.x * dt;
+            thrownItem.position.y += this.throwVelocity.y * dt;
+            thrownItem.position.z += this.throwVelocity.z * dt;
+
+            // Rotate for tumbling effect (faster spin for dramatic effect)
+            thrownItem.rotation.x += 8 * dt;
+            thrownItem.rotation.y += 6 * dt;
+            thrownItem.rotation.z += 4 * dt;
+
+            // ============================================
+            // UPDATE CINEMATIC CAMERA TARGET (smooth follow)
+            // ============================================
+
+            // Lerp camera target to follow the can
+            const lerpSpeed = 5.0;
+            this.cinematicCameraTarget.x += (thrownItem.position.x - this.cinematicCameraTarget.x) * lerpSpeed * rawDt;
+            this.cinematicCameraTarget.y += (thrownItem.position.y - this.cinematicCameraTarget.y) * lerpSpeed * rawDt;
+            this.cinematicCameraTarget.z += (thrownItem.position.z - this.cinematicCameraTarget.z) * lerpSpeed * rawDt;
+
+            // Slowly move camera position to follow the action
+            if (enemyModel) {
+                // Recalculate ideal camera position based on current can and enemy positions
+                const currentMidpoint = new THREE.Vector3(
+                    (thrownItem.position.x + enemyModel.position.x) / 2,
+                    (thrownItem.position.y + enemyModel.position.y) / 2,
+                    (thrownItem.position.z + enemyModel.position.z) / 2
+                );
+                const idealCamX = currentMidpoint.x + 12; // Side offset
+                const idealCamY = currentMidpoint.y + 4;
+                const idealCamZ = currentMidpoint.z;
+
+                // Smooth camera movement
+                this.cinematicCameraPosition.x += (idealCamX - this.cinematicCameraPosition.x) * 2.0 * rawDt;
+                this.cinematicCameraPosition.y += (idealCamY - this.cinematicCameraPosition.y) * 2.0 * rawDt;
+                this.cinematicCameraPosition.z += (idealCamZ - this.cinematicCameraPosition.z) * 2.0 * rawDt;
+            }
+
+            // Check collision with enemy FIRST (before distance/time check)
             if (enemyModel) {
                 const distance = thrownItem.position.distanceTo(enemyModel.position);
 
-                // Debug: log positions and distance
-                if (Math.random() < 0.1) { // Log 10% of frames to avoid spam
-                    console.log(`🎯 Throw check - Item Z: ${thrownItem.position.z.toFixed(2)}, Enemy Z: ${enemyModel.position.z.toFixed(2)}, Distance: ${distance.toFixed(2)}`);
-                }
-
                 // Trigger look-behind animation when item gets close (but hasn't hit yet)
                 if (distance < 7.5 && !enemyLookBehindTriggered && enemyAnimations.lookBehind) {
-                    console.log('👀 Enemy looks behind! Distance:', distance.toFixed(2));
+                    console.log('Enemy looks behind! Distance:', distance.toFixed(2));
                     // Stop run animation and play look-behind
                     if (enemyAnimations.run) enemyAnimations.run.stop();
                     enemyAnimations.lookBehind.reset();
@@ -2309,21 +2446,29 @@ const PlayerController = {
                     enemyLookBehindTriggered = true;
                 }
 
-                if (distance < 3.5) { // Increased hit detection radius from 2.0 to 3.5
+                // HIT DETECTION - check if close enough to enemy
+                if (distance < 3.0) {
                     // Check if enemy is in the same lane as the thrown item
                     const enemyX = enemyModel.position.x;
                     const laneDistance = Math.abs(enemyX - throwLaneX);
-                    const sameLane = laneDistance < 1.5; // Within 1.5 units = same lane
+                    const sameLane = laneDistance < 2.5; // Slightly wider tolerance for arc trajectory
 
                     if (!sameLane) {
-                        console.log('🎯 Item passed near enemy but different lane - Distance:', distance, 'Lane distance:', laneDistance.toFixed(2), 'MISS');
+                        console.log('Item passed near enemy but different lane - Distance:', distance, 'Lane distance:', laneDistance.toFixed(2), 'MISS');
                         // Don't register hit, continue animation
                     } else {
-                        console.log('🎯 Item hit enemy! Distance:', distance, 'Lane distance:', laneDistance.toFixed(2));
+                        console.log('CINEMATIC HIT! Distance:', distance.toFixed(2), 'Lane distance:', laneDistance.toFixed(2));
+
+                        // End cinematic throw mode
+                        this.cinematicThrowActive = false;
+                        this.throwTimeScale = 1.0;
+
+                        // CAMERA SHAKE on impact
+                        this.triggerCameraShake();
 
                         // VANISH THE CAN IMMEDIATELY - remove from scene
                         scene.remove(thrownItem);
-                        console.log('💨 Can vanished on impact');
+                        console.log('Can vanished on impact');
 
                         // HIDE ALL PICKUPS ON THE GROUND
                         pickups.forEach(pickup => {
@@ -2331,35 +2476,31 @@ const PlayerController = {
                                 pickup.mesh.visible = false;
                             }
                         });
-                        console.log('👻 All pickups hidden');
 
                         // STOP STAGE MOVEMENT COMPLETELY
                         GameState.gameSpeed = 0;
-                        GameState.stageFrozen = true; // New flag to prevent stage updates
-                        console.log('🛑 Stage movement frozen');
+                        GameState.stageFrozen = true;
 
-                        // SLOW MOTION EFFECT - watch enemy death reaction
-                        GameState.timeScale = 0.3; // Slow to 30% speed
-                        console.log('🎬 Slow motion activated!');
+                        // SLOW MOTION for enemy reaction
+                        GameState.timeScale = 0.3;
+                        console.log('Impact slow motion (30% speed)');
 
-                        // Play hit sound effect using SoundController
+                        // Play hit sound effect
                         SoundController.playHitSound();
 
-                        // Switch camera focus to ENEMY (not the can)
-                        this.activeThrownItem = null; // Stop following can
-                        this.isFollowingEnemyReaction = true; // New flag for enemy close-up
-                        console.log('📷 Camera switched to enemy close-up');
+                        // Switch camera focus to ENEMY
+                        this.activeThrownItem = null;
+                        this.isFollowingEnemyReaction = true;
+                        console.log('Camera switched to enemy close-up');
 
                         EnemyController.takeDamage();
 
                         // Hold slow motion for 3 seconds to see full death animation
                         setTimeout(() => {
-                            GameState.timeScale = 1.0; // Restore normal animation speed
-                            // NOTE: Keep stage frozen and gameSpeed at 0 until "Got em!" text finishes
-                            // This will be restored in fadeAndReturnToGameplay()
-                            console.log('🎬 Normal animation speed restored (stage still frozen for "Got em!" text)');
+                            GameState.timeScale = 1.0;
+                            console.log('Normal animation speed restored');
 
-                            this.isFollowingEnemyReaction = false; // End enemy close-up
+                            this.isFollowingEnemyReaction = false;
 
                             // Show all pickups again
                             pickups.forEach(pickup => {
@@ -2367,9 +2508,8 @@ const PlayerController = {
                                     pickup.mesh.visible = true;
                                 }
                             });
-                            console.log('👁️ Pickups visible again');
 
-                            // Show "Got em!" text and fade (stage stays frozen during this)
+                            // Show "Got em!" text and fade
                             this.showThrowResult(true);
                         }, 3000);
 
@@ -2378,19 +2518,23 @@ const PlayerController = {
                 }
             }
 
-            // Check if item has traveled far enough (ONLY if no hit)
-            if (Math.abs(thrownItem.position.z - throwStartZ) > throwDistance) {
-                console.log('🎯 Item missed - traveled too far. Final distance from enemy:',
-                    enemyModel ? thrownItem.position.distanceTo(enemyModel.position).toFixed(2) : 'N/A');
+            // Check if item has traveled too long (miss) or hit the ground
+            if (flightElapsed > maxFlightTime || thrownItem.position.y < 0) {
+                console.log('Item missed - flight time:', flightElapsed.toFixed(2), 'Y:', thrownItem.position.y.toFixed(2));
+
+                // End cinematic mode
+                this.cinematicThrowActive = false;
+                this.throwTimeScale = 1.0;
+                GameState.timeScale = 1.0;
+
                 scene.remove(thrownItem);
 
-                // CRITICAL: Reset look-behind animation if it was triggered
-                // Without this, enemy stays frozen in look-behind pose after miss
+                // Reset look-behind animation if it was triggered
                 if (enemyLookBehindTriggered && enemyAnimations.lookBehind && enemyAnimations.run) {
                     enemyAnimations.lookBehind.stop();
                     enemyAnimations.run.reset();
                     enemyAnimations.run.play();
-                    console.log('👀 Look-behind stopped, resuming run animation after miss');
+                    console.log('Look-behind stopped, resuming run animation after miss');
                 }
 
                 // Show "Missed!" text and fade
@@ -2405,7 +2549,7 @@ const PlayerController = {
     },
 
     endThrowCameraFollow() {
-        console.log('📷 Ending throw camera follow');
+        console.log('Ending throw camera follow');
         this.isFollowingThrowItem = false;
         this.isFollowingEnemyReaction = false;
         this.activeThrownItem = null;
@@ -2413,6 +2557,40 @@ const PlayerController = {
         this.throwResultShown = false;
         GameState.timeScale = 1.0; // Ensure normal speed is restored
         GameState.stageFrozen = false; // Ensure stage is unfrozen
+        // Reset cinematic properties
+        this.cinematicThrowActive = false;
+        this.throwTimeScale = 1.0;
+        this.throwStartPosition = null;
+        this.throwTargetPosition = null;
+        this.cameraShakeActive = false;
+        this.cameraShakeIntensity = 0;
+    },
+
+    // Camera shake effect for dramatic impact
+    cameraShakeActive: false,
+    cameraShakeIntensity: 0,
+    cameraShakeDecay: 10,
+
+    triggerCameraShake() {
+        this.cameraShakeActive = true;
+        this.cameraShakeIntensity = 0.5; // Initial shake intensity
+        console.log('CAMERA SHAKE triggered on impact!');
+    },
+
+    getCameraShakeOffset() {
+        if (!this.cameraShakeActive || this.cameraShakeIntensity <= 0.01) {
+            this.cameraShakeActive = false;
+            return { x: 0, y: 0, z: 0 };
+        }
+        // Random offset based on intensity
+        const offset = {
+            x: (Math.random() - 0.5) * this.cameraShakeIntensity,
+            y: (Math.random() - 0.5) * this.cameraShakeIntensity,
+            z: (Math.random() - 0.5) * this.cameraShakeIntensity * 0.5
+        };
+        // Decay the shake
+        this.cameraShakeIntensity *= 0.9;
+        return offset;
     },
 
     showThrowResult(hit) {
@@ -8747,6 +8925,9 @@ function animate() {
             }
 
             // Update camera to follow player, thrown item, or enemy reaction
+            // Get camera shake offset if active
+            const shakeOffset = PlayerController.getCameraShakeOffset();
+
             if (PlayerController.isFollowingEnemyReaction && enemyModel) {
                 // ENEMY HIT REACTION CLOSE-UP - zoom in on enemy
                 const enemy = enemyModel;
@@ -8754,24 +8935,50 @@ function animate() {
                 const sideOffset = 3; // Slightly to side for better angle
                 const cameraHeight = 2; // At chest/face level
 
-                camera.position.x = enemy.position.x + sideOffset;
-                camera.position.y = enemy.position.y + cameraHeight;
-                camera.position.z = enemy.position.z + closeUpDistance; // Behind enemy, looking forward
+                camera.position.x = enemy.position.x + sideOffset + shakeOffset.x;
+                camera.position.y = enemy.position.y + cameraHeight + shakeOffset.y;
+                camera.position.z = enemy.position.z + closeUpDistance + shakeOffset.z;
 
                 // Look at enemy's upper body/face
                 camera.lookAt(enemy.position.x, enemy.position.y + 1.5, enemy.position.z);
-            } else if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
-                // Cinematic camera - SIDE VIEW to see can traveling toward enemy
+            } else if (PlayerController.cinematicThrowActive && PlayerController.activeThrownItem) {
+                // ============================================
+                // CINEMATIC THROW CAMERA - Side view of arc
+                // ============================================
                 const item = PlayerController.activeThrownItem;
-                const sideOffset = 6; // Reduced from 8 - closer to see enemy better
-                const cameraHeight = 1.5; // Slightly higher view
-                const depthOffset = 2; // Closer to capture both can and enemy
 
-                camera.position.x = item.position.x + sideOffset; // Move camera to the SIDE
-                camera.position.y = item.position.y + cameraHeight;
-                camera.position.z = item.position.z + depthOffset; // Slightly behind to capture both
+                // Use the smoothly interpolated camera position
+                camera.position.x = PlayerController.cinematicCameraPosition.x + shakeOffset.x;
+                camera.position.y = PlayerController.cinematicCameraPosition.y + shakeOffset.y;
+                camera.position.z = PlayerController.cinematicCameraPosition.z + shakeOffset.z;
 
-                // Look slightly ahead of item to see enemy in frame
+                // Look at the smoothly interpolated target (between can and enemy)
+                const lookTarget = new THREE.Vector3(
+                    PlayerController.cinematicCameraTarget.x,
+                    PlayerController.cinematicCameraTarget.y,
+                    PlayerController.cinematicCameraTarget.z
+                );
+
+                // Blend look target between can and enemy for better framing
+                if (enemyModel) {
+                    const blendFactor = 0.3; // 30% toward enemy, 70% toward can
+                    lookTarget.x = lookTarget.x * (1 - blendFactor) + enemyModel.position.x * blendFactor;
+                    lookTarget.y = lookTarget.y * (1 - blendFactor) + (enemyModel.position.y + 1.5) * blendFactor;
+                    lookTarget.z = lookTarget.z * (1 - blendFactor) + enemyModel.position.z * blendFactor;
+                }
+
+                camera.lookAt(lookTarget);
+            } else if (PlayerController.isFollowingThrowItem && PlayerController.activeThrownItem) {
+                // Fallback: Legacy camera follow (shouldn't normally reach here with cinematic system)
+                const item = PlayerController.activeThrownItem;
+                const sideOffset = 8;
+                const cameraHeight = 3;
+                const depthOffset = 4;
+
+                camera.position.x = item.position.x + sideOffset + shakeOffset.x;
+                camera.position.y = item.position.y + cameraHeight + shakeOffset.y;
+                camera.position.z = item.position.z + depthOffset + shakeOffset.z;
+
                 camera.lookAt(item.position.x, item.position.y, item.position.z - 8);
             } else if (playerModel) {
                 // CLOSE-UP camera following player FROM BEHIND (user requested this view as default)
@@ -8780,9 +8987,9 @@ function animate() {
                 const cameraHeight = 3; // Higher for better view over shoulder
                 const behindDistance = 6; // 6 units behind player
 
-                camera.position.x = playerModel.position.x + sideOffset;
-                camera.position.y = playerModel.position.y + cameraHeight;
-                camera.position.z = playerModel.position.z + behindDistance;
+                camera.position.x = playerModel.position.x + sideOffset + shakeOffset.x;
+                camera.position.y = playerModel.position.y + cameraHeight + shakeOffset.y;
+                camera.position.z = playerModel.position.z + behindDistance + shakeOffset.z;
 
                 // Look at player's upper body/head area
                 camera.lookAt(playerModel.position.x, playerModel.position.y + 1.5, playerModel.position.z);
