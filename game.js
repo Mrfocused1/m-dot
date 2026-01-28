@@ -2216,6 +2216,36 @@ const PlayerController = {
         GameState.timeScale = this.throwTimeScale;
         console.log('CINEMATIC SLOW MOTION: Projectile flight at 40% speed');
 
+        // ============================================
+        // ENEMY LOOK BEHIND - Dramatic chase scene effect
+        // Enemy looks back over shoulder while running as can approaches
+        // ============================================
+        if (enemyAnimations.lookBehind && enemyAnimations.run) {
+            console.log('Enemy looking back at incoming projectile');
+
+            // Keep run animation playing but reduce its weight for blending
+            if (!enemyAnimations.run.isRunning()) {
+                enemyAnimations.run.reset();
+                enemyAnimations.run.enabled = true;
+                enemyAnimations.run.play();
+            }
+            enemyAnimations.run.setEffectiveWeight(0.6); // Reduced weight - legs still moving
+
+            // Blend in lookBehind animation on top
+            enemyAnimations.lookBehind.reset();
+            enemyAnimations.lookBehind.enabled = true;
+            enemyAnimations.lookBehind.setEffectiveWeight(0.8); // Strong upper body look-behind
+            enemyAnimations.lookBehind.setLoop(THREE.LoopRepeat); // Loop while running
+            enemyAnimations.lookBehind.play();
+
+            // Set flag so we know lookBehind is active
+            EnemyController.isLookingBehind = true;
+            enemyLookBehindTriggered = true; // Also set legacy flag
+
+            console.log('LookBehind animation started - Run weight:', enemyAnimations.run.getEffectiveWeight(),
+                        'LookBehind weight:', enemyAnimations.lookBehind.getEffectiveWeight());
+        }
+
         // Initialize cinematic camera position (to the side of the action)
         const throwDirection = new THREE.Vector3().subVectors(this.throwTargetPosition, this.throwStartPosition).normalize();
         const sideVector = new THREE.Vector3(-throwDirection.z, 0, throwDirection.x).normalize(); // Perpendicular
@@ -2343,15 +2373,9 @@ const PlayerController = {
             if (enemyModel) {
                 const distance = thrownItem.position.distanceTo(enemyModel.position);
 
-                // Trigger look-behind animation when item gets close (but hasn't hit yet)
-                if (distance < 7.5 && !enemyLookBehindTriggered && enemyAnimations.lookBehind) {
-                    console.log('Enemy looks behind! Distance:', distance.toFixed(2));
-                    // Stop run animation and play look-behind
-                    if (enemyAnimations.run) enemyAnimations.run.stop();
-                    enemyAnimations.lookBehind.reset();
-                    enemyAnimations.lookBehind.play();
-                    enemyLookBehindTriggered = true;
-                }
+                // NOTE: Look-behind animation is now triggered IMMEDIATELY when projectile spawns
+                // (in the createThrownItem function above) for a more dramatic cinematic effect.
+                // The enemy looks back over their shoulder throughout the entire projectile flight.
 
                 // HIT DETECTION - check if close enough to enemy
                 if (distance < 3.0) {
@@ -2369,6 +2393,18 @@ const PlayerController = {
                         // End cinematic throw mode
                         this.cinematicThrowActive = false;
                         this.throwTimeScale = 1.0;
+
+                        // Stop lookBehind animation on hit - enemy is about to take damage
+                        if (enemyAnimations.lookBehind && enemyAnimations.lookBehind.isRunning()) {
+                            enemyAnimations.lookBehind.stop();
+                            enemyAnimations.lookBehind.enabled = false;
+                            console.log('LookBehind animation stopped on hit');
+                        }
+                        // Reset run animation weight (death animation will take over anyway)
+                        if (enemyAnimations.run) {
+                            enemyAnimations.run.setEffectiveWeight(1.0);
+                        }
+                        EnemyController.isLookingBehind = false;
 
                         // CAMERA SHAKE on impact
                         this.triggerCameraShake();
@@ -2443,13 +2479,26 @@ const PlayerController = {
 
                 scene.remove(thrownItem);
 
-                // Reset look-behind animation if it was triggered
-                if (enemyLookBehindTriggered && enemyAnimations.lookBehind && enemyAnimations.run) {
+                // Stop lookBehind animation on miss
+                if (enemyAnimations.lookBehind && enemyAnimations.lookBehind.isRunning()) {
                     enemyAnimations.lookBehind.stop();
-                    enemyAnimations.run.reset();
-                    enemyAnimations.run.play();
-                    console.log('Look-behind stopped, resuming run animation after miss');
+                    enemyAnimations.lookBehind.enabled = false;
+                    enemyAnimations.lookBehind.setEffectiveWeight(0);
+                    console.log('LookBehind animation stopped on miss');
                 }
+
+                // Reset run animation to full weight and ensure it's playing
+                if (enemyAnimations.run) {
+                    enemyAnimations.run.setEffectiveWeight(1.0);
+                    if (!enemyAnimations.run.isRunning()) {
+                        enemyAnimations.run.reset();
+                        enemyAnimations.run.play();
+                    }
+                    console.log('Run animation restored to full weight after miss');
+                }
+
+                EnemyController.isLookingBehind = false;
+                enemyLookBehindTriggered = false;
 
                 // Show "Missed!" text and fade
                 this.showThrowResult(false);
@@ -2764,6 +2813,7 @@ function resetEnemyToSpawn() {
     // 4. Reset enemy lane to center
     EnemyController.currentLane = 1;
     EnemyController.targetLane = 1;
+    EnemyController.isLookingBehind = false;
 
     // 5. Start run animation fresh with COMPLETE reset
     // This naturally returns skeleton to run animation's first frame
@@ -2826,6 +2876,7 @@ function fullGameRefresh() {
     EnemyController.targetLane = 1;
     EnemyController.isRunningAway = false;
     EnemyController.isJumping = false;
+    EnemyController.isLookingBehind = false;
     EnemyController.laneChangeTimer = 0;
     // Note: Don't reset health here - that persists across rounds
 
@@ -2932,6 +2983,7 @@ const EnemyController = {
     maxHealth: 5,
     isJumping: false, // RALPH FIX: Track if enemy is jumping over obstacle
     jumpStartY: 1.0,
+    isLookingBehind: false, // Track if enemy is looking back during projectile flight
 
     init() {
         this.currentLane = 1;
@@ -2940,6 +2992,7 @@ const EnemyController = {
         this.isRunningAway = false;
         this.health = this.maxHealth;
         this.isJumping = false;
+        this.isLookingBehind = false;
     },
 
     // RALPH FIX: Check if there's an obstacle approaching from behind
