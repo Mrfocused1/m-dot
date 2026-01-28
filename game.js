@@ -2048,17 +2048,19 @@ const PlayerController = {
         playerAnimations.throw.stop();
         playerAnimations.throw.reset();
         playerAnimations.throw.enabled = true;
+        playerAnimations.throw.timeScale = 0.5; // CINEMATIC SLOW: 50% speed for dramatic throw
         playerAnimations.throw.fadeIn(0.1);
         playerAnimations.throw.play();
         currentPlayerAnimation = 'throw';
 
-        // Get animation duration
+        // Get animation duration and calculate effective duration with timeScale
         const clipDuration = playerAnimations.throw.getClip().duration || 1.0;
+        const effectiveDuration = clipDuration / playerAnimations.throw.timeScale; // Account for slower playback
 
         // MOBILE FIX: Delay projectile spawn until 95% through animation (was 75%)
         // This keeps the held can visible throughout nearly the entire throw motion
-        const itemSpawnDelay = clipDuration * 0.95 * 1000; // Convert to milliseconds
-        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (95% of ${clipDuration}s animation)`);
+        const itemSpawnDelay = effectiveDuration * 0.95 * 1000; // Convert to milliseconds
+        console.log(`🎯 Item will spawn in ${itemSpawnDelay}ms (95% of ${effectiveDuration}s effective animation at ${playerAnimations.throw.timeScale}x speed)`);
 
         setTimeout(() => {
             if (this.isThrowing) {
@@ -2067,8 +2069,8 @@ const PlayerController = {
         }, itemSpawnDelay);
 
         // Fallback timeout: ensure finishThrow is called even if animation event doesn't fire
-        const timeoutMs = (clipDuration + 0.5) * 1000; // Add 500ms buffer
-        console.log(`🎯 Setting throw timeout fallback: ${timeoutMs}ms (clip duration: ${clipDuration}s)`);
+        const timeoutMs = (effectiveDuration + 0.5) * 1000; // Add 500ms buffer
+        console.log(`🎯 Setting throw timeout fallback: ${timeoutMs}ms (effective duration: ${effectiveDuration}s)`);
 
         this.throwTimeout = setTimeout(() => {
             if (this.isThrowing) {
@@ -2116,8 +2118,9 @@ const PlayerController = {
         // Stop enemy from running away
         EnemyController.isRunningAway = false;
 
-        // Stop the throw animation to ensure clean state for next time
+        // Stop the throw animation and reset timeScale for next throw
         if (playerAnimations.throw) {
+            playerAnimations.throw.timeScale = 1.0; // Reset to normal speed for next time
             playerAnimations.throw.stop();
         }
 
@@ -2207,10 +2210,10 @@ const PlayerController = {
         this.throwTargetPosition = enemyModel ? enemyModel.position.clone() : new THREE.Vector3(0, 1, -50);
         this.cinematicThrowActive = true;
 
-        // Apply slight slow motion for dramatic effect during throw
-        this.throwTimeScale = 0.6; // 60% speed for dramatic effect
+        // Apply slow motion for dramatic effect during throw (matches animation timeScale)
+        this.throwTimeScale = 0.5; // 50% speed for cinematic dramatic effect
         GameState.timeScale = this.throwTimeScale;
-        console.log('CINEMATIC MODE: Slow motion activated (60% speed)');
+        console.log('CINEMATIC MODE: Slow motion activated (50% speed)');
 
         // Initialize cinematic camera position (to the side of the action)
         const throwDirection = new THREE.Vector3().subVectors(this.throwTargetPosition, this.throwStartPosition).normalize();
@@ -2249,8 +2252,8 @@ const PlayerController = {
         const dy = targetPos.y - thrownItem.position.y;
         const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
 
-        // FAST, DIRECT throw - much shorter flight time
-        const flightTime = 0.6; // Fast throw (was 1.2 for slow arc)
+        // CINEMATIC SLOW: Longer flight time for dramatic effect
+        const flightTime = 1.2; // Slower, more dramatic throw (was 0.6 for fast throw)
 
         // Calculate velocities for STRAIGHT LINE trajectory
         // Horizontal velocity: distance / time
