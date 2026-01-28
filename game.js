@@ -1171,44 +1171,60 @@ function showCountdown(callback) {
 function startIntroSequence() {
     console.log('Starting intro sequence: Countdown -> Camera Zoom -> Gameplay');
 
-    // Fade out VS loading screen
+    // STEP 1: Hide canvas initially to prevent flash between loading screen and countdown
+    renderer.domElement.style.opacity = '0';
+
+    // STEP 2: Set up cinematic camera position IMMEDIATELY (while loading screen still visible)
+    // Position: Behind and high, looking down at the player
+    const cinematicStartPosition = new THREE.Vector3(
+        playerModel.position.x,           // Centered on player X
+        playerModel.position.y + 25,      // 25 units up (high angle)
+        playerModel.position.z + 15       // 15 units behind player
+    );
+
+    // Set camera to cinematic position
+    camera.position.copy(cinematicStartPosition);
+
+    // Use lookAt to orient the camera toward the player, then store the rotation
+    camera.lookAt(playerModel.position.x, playerModel.position.y + 1, playerModel.position.z);
+
+    // Freeze game state
+    GameState.stageFrozen = true;
+    GameState.gameSpeed = 0;
+
+    // Make player and enemy visible (but canvas is still hidden)
+    if (playerModel) playerModel.visible = true;
+    if (enemyModel) enemyModel.visible = true;
+
+    // Pre-render a frame while canvas is still hidden
+    renderer.render(scene, camera);
+    console.log('First frame pre-rendered while loading screen visible');
+
+    // STEP 3: Start loading screen fade
     IntroAnimation.complete();
+    // IntroAnimation.complete() timing: 500ms wait + 800ms fade = 1300ms total
+    // Loading screen starts becoming transparent at 500ms
 
-    // Wait for loading screen to fade PLUS extra buffer for first render
-    // Increased from 900ms to 1200ms for better settling time
+    // STEP 4: Start countdown AS loading screen fades (overlap them)
+    // At 800ms, loading screen is mid-fade, so countdown appears seamlessly
     setTimeout(() => {
-        // Set up cinematic camera position (far away, high angle)
-        // Position: Behind and high, looking down at the player
-        const cinematicStartPosition = new THREE.Vector3(
-            playerModel.position.x,           // Centered on player X
-            playerModel.position.y + 25,      // 25 units up (high angle)
-            playerModel.position.z + 15       // 15 units behind player
-        );
+        // Fade in canvas smoothly as countdown starts
+        renderer.domElement.style.transition = 'opacity 0.3s ease-out';
+        renderer.domElement.style.opacity = '1';
 
-        // Set camera to cinematic position
-        camera.position.copy(cinematicStartPosition);
+        // Clean up transition after fade completes to avoid side effects
+        setTimeout(() => {
+            renderer.domElement.style.transition = '';
+        }, 300);
 
-        // Use lookAt to orient the camera toward the player, then store the rotation
-        camera.lookAt(playerModel.position.x, playerModel.position.y + 1, playerModel.position.z);
-
-        // Make sure scene is visible but frozen
-        GameState.stageFrozen = true;
-        GameState.gameSpeed = 0;
-
-        // Make player and enemy visible
-        if (playerModel) playerModel.visible = true;
-        if (enemyModel) enemyModel.visible = true;
-
-        // Ensure at least one frame has been rendered before showing countdown
-        renderer.render(scene, camera);
-        console.log('First frame rendered, scene is ready');
+        console.log('Canvas revealed, starting countdown');
 
         // Start countdown (3, 2, 1, GO) - takes ~2.4 seconds
         showCountdown(() => {
             // After "GO!", start camera zoom
             startCameraZoom();
         });
-    }, 1200);
+    }, 800); // Start countdown at 800ms - loading screen is mid-fade
 }
 
 function startCameraZoom() {
