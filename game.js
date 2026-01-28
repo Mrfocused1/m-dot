@@ -2048,7 +2048,7 @@ const PlayerController = {
         playerAnimations.throw.stop();
         playerAnimations.throw.reset();
         playerAnimations.throw.enabled = true;
-        playerAnimations.throw.timeScale = 0.5; // CINEMATIC SLOW: 50% speed for dramatic throw
+        playerAnimations.throw.timeScale = 1.5; // FAST throw motion (50% faster for snappy animation)
         playerAnimations.throw.fadeIn(0.1);
         playerAnimations.throw.play();
         currentPlayerAnimation = 'throw';
@@ -2210,10 +2210,11 @@ const PlayerController = {
         this.throwTargetPosition = enemyModel ? enemyModel.position.clone() : new THREE.Vector3(0, 1, -50);
         this.cinematicThrowActive = true;
 
-        // Apply slow motion for dramatic effect during throw (matches animation timeScale)
-        this.throwTimeScale = 0.5; // 50% speed for cinematic dramatic effect
+        // Apply slow motion for dramatic projectile flight (NOT during character animation)
+        // The character throws FAST (timeScale 1.5), then the projectile flies SLOW
+        this.throwTimeScale = 0.4; // 40% speed for cinematic slow-motion projectile flight
         GameState.timeScale = this.throwTimeScale;
-        console.log('CINEMATIC MODE: Slow motion activated (50% speed)');
+        console.log('CINEMATIC SLOW MOTION: Projectile flight at 40% speed');
 
         // Initialize cinematic camera position (to the side of the action)
         const throwDirection = new THREE.Vector3().subVectors(this.throwTargetPosition, this.throwStartPosition).normalize();
@@ -2252,8 +2253,9 @@ const PlayerController = {
         const dy = targetPos.y - thrownItem.position.y;
         const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
 
-        // CINEMATIC SLOW: Longer flight time for dramatic effect
-        const flightTime = 1.2; // Slower, more dramatic throw (was 0.6 for fast throw)
+        // Flight time in game time - will feel longer due to 40% slow motion
+        // 0.9s game time = 2.25s real time at 40% speed (dramatic but not too long)
+        const flightTime = 0.9;
 
         // Calculate velocities for STRAIGHT LINE trajectory
         // Horizontal velocity: distance / time
