@@ -1132,12 +1132,31 @@ const MusicController = {
 const SoundController = {
     hitSound: null,
     isUnlocked: false,
+    audioContext: null,
+    gainNode: null,
+    audioBuffer: null,
+    isLoadingBuffer: false,
 
     init() {
         this.hitSound = document.getElementById('hit-sound');
+
+        // Create Web Audio API context for volume amplification
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.gainNode = this.audioContext.createGain();
+            this.gainNode.gain.value = 8.0; // Amplify 8x beyond normal max (800% volume)
+            this.gainNode.connect(this.audioContext.destination);
+            console.log('🔊 Web Audio API initialized with 8x amplification');
+        } catch (e) {
+            console.warn('⚠️ Web Audio API not available, using standard audio');
+        }
+
         if (this.hitSound) {
-            this.hitSound.volume = 0.7;
+            this.hitSound.volume = 1.0;  // Max volume
             console.log('🔊 SoundController initialized - hit sound element found');
+
+            // Load audio into buffer for Web Audio API (allows unlimited replays)
+            this.loadAudioBuffer();
         } else {
             console.warn('⚠️ Hit sound element not found');
         }
@@ -1146,9 +1165,33 @@ const SoundController = {
         this.addUnlockListeners();
     },
 
+    async loadAudioBuffer() {
+        if (!this.audioContext || this.isLoadingBuffer) return;
+
+        this.isLoadingBuffer = true;
+
+        try {
+            const response = await fetch('hit-sound.mp3');
+            const arrayBuffer = await response.arrayBuffer();
+            this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+            console.log('🔊 Hit sound loaded into audio buffer - ready for unlimited plays at 8x volume');
+        } catch (e) {
+            console.warn('⚠️ Failed to load audio buffer, will use fallback method:', e);
+        }
+
+        this.isLoadingBuffer = false;
+    },
+
     addUnlockListeners() {
         const unlockAudio = () => {
             if (this.isUnlocked) return;
+
+            // Resume Web Audio context if suspended
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                this.audioContext.resume().then(() => {
+                    console.log('🔊 Web Audio context resumed');
+                });
+            }
 
             // Unlock the audio by playing it silently
             if (this.hitSound) {
@@ -1160,7 +1203,7 @@ const SoundController = {
                         this.hitSound.currentTime = 0;
                         this.hitSound.volume = originalVolume;
                         this.isUnlocked = true;
-                        console.log('🔊 Hit sound unlocked after user interaction');
+                        console.log('🔊 Hit sound unlocked after user interaction with 8x amplification');
                     })
                     .catch(e => {
                         console.log('🔊 Hit sound unlock attempt failed:', e);
@@ -1179,23 +1222,51 @@ const SoundController = {
         console.log('🔊 Waiting for user interaction to unlock sound effects...');
     },
 
-    playHitSound() {
+    async playHitSound() {
+        // CRITICAL: Resume audio context if suspended
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            try {
+                await this.audioContext.resume();
+                console.log('🔊 Audio context resumed');
+            } catch (e) {
+                console.warn('⚠️ Failed to resume audio context:', e);
+            }
+        }
+
+        // Use Web Audio API with buffer (allows unlimited replays at 8x volume)
+        if (this.audioContext && this.gainNode && this.audioBuffer) {
+            try {
+                // Create a new source for this play (required for each playback)
+                const source = this.audioContext.createBufferSource();
+                source.buffer = this.audioBuffer;
+                source.connect(this.gainNode);
+                source.start(0);
+                console.log('🔊 Hit sound played at 8x amplification via Web Audio API');
+                return;
+            } catch (e) {
+                console.warn('⚠️ Web Audio playback failed, using fallback:', e);
+            }
+        }
+
+        // Fallback: Use standard HTML5 audio (without amplification)
         if (!this.hitSound) {
             this.hitSound = document.getElementById('hit-sound');
         }
 
         if (this.hitSound) {
+            // Stop any currently playing sound before restarting
+            if (!this.hitSound.paused) {
+                this.hitSound.pause();
+            }
+
             this.hitSound.currentTime = 0;
-            this.hitSound.volume = 0.7;
-            const playPromise = this.hitSound.play();
-            if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
-                        console.log('🔊 Hit sound effect played successfully');
-                    })
-                    .catch(e => {
-                        console.log('🔊 Hit sound play failed:', e);
-                    });
+            this.hitSound.volume = 1.0;  // Max volume
+
+            try {
+                await this.hitSound.play();
+                console.log('🔊 Hit sound played via fallback HTML5 audio (normal volume)');
+            } catch (e) {
+                console.log('🔊 Hit sound play failed:', e);
             }
         } else {
             console.warn('⚠️ Hit sound element not available');
