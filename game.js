@@ -2400,6 +2400,13 @@ const PlayerController = {
                         this.isFollowingEnemyReaction = true;
                         console.log('Camera switched to enemy close-up');
 
+                        // Debug: Log animation state before calling takeDamage
+                        console.log('=== HIT DETECTED - PRE-TAKEDAMAGE DEBUG ===');
+                        console.log('Enemy mixer exists:', !!enemyMixer);
+                        console.log('Enemy animations available:', Object.keys(enemyAnimations));
+                        console.log('Death animation exists:', !!enemyAnimations.death);
+                        console.log('Enemy health before hit:', EnemyController.health);
+
                         EnemyController.takeDamage();
 
                         // Hold slow motion for 3 seconds to see full death animation
@@ -3043,16 +3050,50 @@ const EnemyController = {
             this.health--;
             console.log(`🎯 Enemy hit! Health: ${this.health}/${this.maxHealth}`);
 
+            // Debug: Log animation state before playing
+            console.log('=== TAKE DAMAGE ANIMATION DEBUG ===');
+            console.log('Enemy mixer exists:', !!enemyMixer);
+            console.log('Death animation exists:', !!enemyAnimations.death);
+            console.log('Run animation exists:', !!enemyAnimations.run);
+
             // Play death/hit animation
             if (enemyAnimations.death) {
-                // Stop current animations
-                if (enemyAnimations.run) enemyAnimations.run.stop();
-                if (enemyAnimations.lookBehind) enemyAnimations.lookBehind.stop();
+                // Stop current animations and disable them
+                if (enemyAnimations.run) {
+                    enemyAnimations.run.stop();
+                    enemyAnimations.run.enabled = false;
+                    enemyAnimations.run.setEffectiveWeight(0);
+                }
+                if (enemyAnimations.lookBehind) {
+                    enemyAnimations.lookBehind.stop();
+                    enemyAnimations.lookBehind.enabled = false;
+                    enemyAnimations.lookBehind.setEffectiveWeight(0);
+                }
+                if (enemyAnimations.jump) {
+                    enemyAnimations.jump.stop();
+                    enemyAnimations.jump.enabled = false;
+                    enemyAnimations.jump.setEffectiveWeight(0);
+                }
 
-                // Play death animation
+                // CRITICAL: Reset and ENABLE death animation before playing
+                // Previous fullGameRefresh() sets enabled=false and weight=0
+                // We MUST re-enable these or the animation won't play (T-pose bug)
+                enemyAnimations.death.stop();
                 enemyAnimations.death.reset();
+                enemyAnimations.death.enabled = true;
+                enemyAnimations.death.setEffectiveWeight(1);
+                enemyAnimations.death.setEffectiveTimeScale(1);
                 enemyAnimations.death.play();
-                console.log('💀 Playing death/hit animation');
+                console.log('💀 Playing death/hit animation (enabled=true, weight=1)');
+            } else {
+                // FALLBACK: If death animation doesn't exist, keep run to prevent T-pose
+                console.warn('⚠️ Death animation not found - keeping run animation to prevent T-pose');
+                if (enemyAnimations.run) {
+                    enemyAnimations.run.reset();
+                    enemyAnimations.run.enabled = true;
+                    enemyAnimations.run.setEffectiveWeight(1);
+                    enemyAnimations.run.play();
+                }
             }
 
             // Update health bar
