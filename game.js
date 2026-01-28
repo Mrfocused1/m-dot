@@ -1668,21 +1668,8 @@ const PlayerController = {
     },
 
     update(dt) {
-        // Auto-jump when approaching a barrier
-        // In chase mode: obstacles are safe UNTIL player throws for the first time
-        // After first throw, auto-jump is enabled to avoid obstacles
-        const shouldCheckAutoJump = (GameState.selectedLevel !== 'chase') ||
-                                    (GameState.selectedLevel === 'chase' && this.hasThrown);
-
-        // DEBUG: Log auto-jump check status (only once when hasThrown changes)
-        if (this.hasThrown && !this._autoJumpLoggedOnce) {
-            console.log('✅ Auto-jump NOW ENABLED (hasThrown=true)');
-            this._autoJumpLoggedOnce = true;
-        }
-
-        if (!this.isJumping && playerModel && shouldCheckAutoJump) {
-            this.checkAutoJump();
-        }
+        // JUMP DISABLED: Player no longer auto-jumps obstacles
+        // Player must avoid obstacles by switching lanes only
 
         // Handle lane change input
         // CRITICAL FIX: Don't allow lane changes during throw or pickup animations
@@ -2591,13 +2578,54 @@ const EnemyController = {
         return null;
     },
 
-    // RALPH FIX: Jump over obstacle
-    startJump() {
-        if (this.isJumping || !enemyModel || !enemyAnimations.jump) return;
+    // ENEMY AVOIDANCE: Find safe lane and switch to it
+    avoidObstacle(obstacle) {
+        if (!enemyModel) return;
 
-        console.log('🦘 Enemy jumping over obstacle!');
-        this.isJumping = true;
-        this.jumpStartY = enemyModel.position.y;
+        console.log(`🚧 Enemy avoiding obstacle in lane ${obstacle.lane}`);
+
+        // Check which lanes are safe (no obstacles within 15 units)
+        const safeLanes = [0, 1, 2].filter(lane => {
+            if (lane === obstacle.lane) return false; // Avoid obstacle lane
+
+            // Check if there are other obstacles in this lane
+            for (let i = 0; i < obstacles.length; i++) {
+                const obs = obstacles[i];
+                if (!obs.active) continue;
+                if (obs.lane !== lane) continue;
+
+                const distance = enemyModel.position.z - obs.mesh.position.z;
+                if (distance > 0 && distance < 15) {
+                    return false; // Obstacle too close in this lane
+                }
+            }
+            return true; // Lane is safe
+        });
+
+        if (safeLanes.length > 0) {
+            // Choose closest safe lane to current lane
+            let bestLane = safeLanes[0];
+            let minDistance = Math.abs(bestLane - this.currentLane);
+
+            for (let lane of safeLanes) {
+                const dist = Math.abs(lane - this.currentLane);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    bestLane = lane;
+                }
+            }
+
+            this.targetLane = bestLane;
+            console.log(`🚧 Enemy switching from lane ${this.currentLane} to lane ${bestLane}`);
+        } else {
+            console.warn('⚠️ No safe lanes available! Enemy staying in lane', this.currentLane);
+        }
+    },
+
+    // DEPRECATED: Jump disabled - enemy avoids by lane switching
+    startJump() {
+        // Jumping disabled - enemy uses lane avoidance instead
+        return;
 
         // Stop current animations and play jump
         if (enemyAnimations.run) enemyAnimations.run.stop();
@@ -2700,21 +2728,13 @@ const EnemyController = {
     },
 
     update(dt) {
-        // RALPH FIX: Check for obstacles ahead and jump
-        if (!this.isJumping) {
-            const obstacleAhead = this.checkObstacleAhead();
-            if (obstacleAhead) {
-                this.startJump();
-            }
-        }
-
-        // RALPH FIX: Update jump state
-        if (this.isJumping) {
-            this.updateJump(dt);
-        }
-
-        // Lane change logic - ONLY when not jumping (prevents "flying" look)
-        if (!this.isJumping) {
+        // ENEMY AVOIDANCE: Check for obstacles and switch lanes to avoid
+        const obstacleAhead = this.checkObstacleAhead();
+        if (obstacleAhead) {
+            // Find a safe lane to switch to
+            this.avoidObstacle(obstacleAhead);
+        } else {
+            // Normal lane change behavior when no obstacles
             this.laneChangeTimer += dt;
 
             if (this.laneChangeTimer >= this.laneChangeInterval) {
@@ -2731,8 +2751,8 @@ const EnemyController = {
             }
         }
 
-        // Smooth lane movement - ONLY when not jumping
-        if (enemyModel && !this.isJumping) {
+        // Smooth lane movement
+        if (enemyModel) {
             const targetX = LANE_POSITIONS[this.targetLane];
             const diff = targetX - enemyModel.position.x;
 
@@ -4534,6 +4554,8 @@ const PickupManager = {
 const ObstacleManager = {
     spawnTimer: 0,
     spawnInterval: 1.5,
+    spawnDelay: 3.0, // No spawns for first 3 seconds after game start/respawn
+    spawnDelayTimer: 3.0, // Current delay countdown
 
     init() {
         // Create obstacle pool with placeholder meshes
@@ -4590,11 +4612,19 @@ const ObstacleManager = {
     },
 
     update(dt) {
-        this.spawnTimer += dt;
+        // SAFETY: 3-second spawn delay after game start/respawn
+        if (this.spawnDelayTimer > 0) {
+            this.spawnDelayTimer -= dt;
+            console.log(`⏳ Obstacle spawn delay: ${this.spawnDelayTimer.toFixed(1)}s remaining`);
+            // Don't spawn obstacles during delay period
+        } else {
+            // Normal spawning after delay expires
+            this.spawnTimer += dt;
 
-        if (this.spawnTimer >= this.spawnInterval) {
-            this.spawnTimer = 0;
-            this.spawn();
+            if (this.spawnTimer >= this.spawnInterval) {
+                this.spawnTimer = 0;
+                this.spawn();
+            }
         }
 
         obstacles.forEach(obs => obs.update(dt));
@@ -4604,6 +4634,8 @@ const ObstacleManager = {
         obstacles.forEach(obs => obs.deactivate());
         obstacles.length = 0;
         this.spawnTimer = 0;
+        this.spawnDelayTimer = this.spawnDelay; // Reset 3-second safety delay
+        console.log('🛡️ Obstacle spawn delay activated:', this.spawnDelay, 'seconds');
     }
 };
 
@@ -7893,9 +7925,9 @@ function checkCollisions() {
     // BUG FIX #1: ALWAYS check obstacle collision (removed hasThrown requirement)
     // Previously obstacles were safe until first throw - caused players to run through concrete on game start
     // BUG FIX #3: Increased collision threshold from 1.5 to 3.0 to handle high speed/frame drops
+    // JUMP DISABLED: Removed isJumping check - player can never jump so always check collision
 
-    if (!PlayerController.isJumping) {
-        obstacles.forEach(obstacle => {
+    obstacles.forEach(obstacle => {
             if (obstacle.active) {
                 const distance = Math.abs(obstacle.mesh.position.z - playerModel.position.z);
 
@@ -7930,7 +7962,6 @@ function checkCollisions() {
                 }
             }
         });
-    }
 
     // Check enemy collision
     if (enemyModel) {
@@ -7948,16 +7979,41 @@ function checkCollisions() {
 }
 
 function handlePlayerHit() {
-    // GameState.lives--; // DISABLED - Unlimited lives for testing
-    PlayerController.isInvincible = true;
-    PlayerController.invincibilityTimer = 2;
+    console.log('💥 Player hit obstacle!');
 
-    console.log(`Hit! Lives: ${GameState.lives} (unlimited)`);
+    // Play hit sound effect
+    SoundController.playHitSound();
 
-    // Game over disabled with unlimited lives
-    // if (GameState.lives <= 0) {
-    //     gameOver();
-    // }
+    // Freeze game
+    const savedSpeed = GameState.gameSpeed;
+    GameState.gameSpeed = 0;
+    GameState.stageFrozen = true;
+
+    // Show "You're wasting time" message
+    const overlay = UI.overlay;
+    overlay.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: rgba(0,0,0,0.9);">
+            <div style="text-align: center;">
+                <h1 style="font-size: clamp(48px, 10vw, 96px); color: #ff0000; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); margin-bottom: 30px;">
+                    YOU'RE WASTING TIME
+                </h1>
+                <p style="font-size: clamp(20px, 4vw, 32px); color: white; font-family: 'Orbitron', sans-serif;">
+                    Avoid the obstacles!
+                </p>
+            </div>
+        </div>
+    `;
+
+    // Resume after 2 seconds
+    setTimeout(() => {
+        overlay.innerHTML = '';
+        GameState.gameSpeed = savedSpeed;
+        GameState.stageFrozen = false;
+
+        // Give player brief invincibility
+        PlayerController.isInvincible = true;
+        PlayerController.invincibilityTimer = 2;
+    }, 2000);
 }
 
 // ============================================================================
