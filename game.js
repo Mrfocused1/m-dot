@@ -1126,6 +1126,84 @@ const MusicController = {
 };
 
 // ============================================================================
+// SOUND EFFECTS CONTROLLER
+// ============================================================================
+
+const SoundController = {
+    hitSound: null,
+    isUnlocked: false,
+
+    init() {
+        this.hitSound = document.getElementById('hit-sound');
+        if (this.hitSound) {
+            this.hitSound.volume = 0.7;
+            console.log('🔊 SoundController initialized - hit sound element found');
+        } else {
+            console.warn('⚠️ Hit sound element not found');
+        }
+
+        // Add event listeners to unlock audio on first user interaction
+        this.addUnlockListeners();
+    },
+
+    addUnlockListeners() {
+        const unlockAudio = () => {
+            if (this.isUnlocked) return;
+
+            // Unlock the audio by playing it silently
+            if (this.hitSound) {
+                const originalVolume = this.hitSound.volume;
+                this.hitSound.volume = 0;
+                this.hitSound.play()
+                    .then(() => {
+                        this.hitSound.pause();
+                        this.hitSound.currentTime = 0;
+                        this.hitSound.volume = originalVolume;
+                        this.isUnlocked = true;
+                        console.log('🔊 Hit sound unlocked after user interaction');
+                    })
+                    .catch(e => {
+                        console.log('🔊 Hit sound unlock attempt failed:', e);
+                    });
+            }
+
+            // Remove listeners after first interaction
+            document.removeEventListener('click', unlockAudio);
+            document.removeEventListener('touchstart', unlockAudio);
+            document.removeEventListener('keydown', unlockAudio);
+        };
+
+        document.addEventListener('click', unlockAudio);
+        document.addEventListener('touchstart', unlockAudio);
+        document.addEventListener('keydown', unlockAudio);
+        console.log('🔊 Waiting for user interaction to unlock sound effects...');
+    },
+
+    playHitSound() {
+        if (!this.hitSound) {
+            this.hitSound = document.getElementById('hit-sound');
+        }
+
+        if (this.hitSound) {
+            this.hitSound.currentTime = 0;
+            this.hitSound.volume = 0.7;
+            const playPromise = this.hitSound.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log('🔊 Hit sound effect played successfully');
+                    })
+                    .catch(e => {
+                        console.log('🔊 Hit sound play failed:', e);
+                    });
+            }
+        } else {
+            console.warn('⚠️ Hit sound element not available');
+        }
+    }
+};
+
+// ============================================================================
 // GAME STATE
 // ============================================================================
 
@@ -2053,14 +2131,8 @@ const PlayerController = {
                         GameState.timeScale = 0.3; // Slow to 30% speed
                         console.log('🎬 Slow motion activated!');
 
-                        // Play hit sound effect
-                        const hitSound = document.getElementById('hit-sound');
-                        if (hitSound) {
-                            hitSound.currentTime = 0; // Reset to start
-                            hitSound.volume = 0.7;
-                            hitSound.play().catch(e => console.log('Hit sound play failed:', e));
-                            console.log('🔊 Hit sound effect played');
-                        }
+                        // Play hit sound effect using SoundController
+                        SoundController.playHitSound();
 
                         // Switch camera focus to ENEMY (not the can)
                         this.activeThrownItem = null; // Stop following can
@@ -8589,6 +8661,7 @@ function init() {
     Input.init();
     UI.init();
     MusicController.init();
+    SoundController.init();
     loadHighScore();
     // createCarDashboard(); // Disabled - using position tracker instead
 
