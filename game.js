@@ -1625,6 +1625,7 @@ const PlayerController = {
     previousTargetLane: 1,
     isJumping: false,
     jumpStartY: 1.0,
+    groundTimer: 0, // BUG FIX #2: Tracks time on ground to detect stuck isJumping flag
     isPickingUp: false,
     hasItem: false,
     hasThrown: false, // Track if player has thrown at least once (enables obstacle collision)
@@ -1647,6 +1648,7 @@ const PlayerController = {
         this.invincibilityTimer = 0;
         this.isJumping = false;
         this.jumpStartY = 1.0;
+        this.groundTimer = 0; // BUG FIX #2: Reset ground timer
         this.isPickingUp = false;
         this.hasItem = false;
         this.hasThrown = false; // Reset throw state for new game
@@ -1721,6 +1723,32 @@ const PlayerController = {
             if (this.invincibilityTimer <= 0) {
                 this.isInvincible = false;
                 this.invincibilityTimer = 0;
+            }
+        }
+
+        // BUG FIX #2: Failsafe for stuck isJumping flag
+        // If isJumping is true but player is on ground for >1 second, force reset
+        if (playerModel) {
+            const playerY = playerModel.position.y;
+            const groundY = 1.0; // Normal ground height
+            const onGround = Math.abs(playerY - groundY) < 0.1; // Within 0.1 units of ground
+
+            if (this.isJumping && onGround) {
+                // Player is jumping but on ground - increment timer
+                this.groundTimer += dt;
+
+                if (this.groundTimer > 1.0) {
+                    // Been on ground for >1 second while "jumping" - stuck state!
+                    console.warn('⚠️ FAILSAFE: Resetting stuck isJumping flag (on ground for', this.groundTimer.toFixed(2), 'seconds)');
+                    this.isJumping = false;
+                    this.groundTimer = 0;
+                }
+            } else if (!this.isJumping && onGround) {
+                // Normal state: not jumping, on ground
+                this.groundTimer = 0;
+            } else if (!onGround) {
+                // In air (legitimate jump or falling)
+                this.groundTimer = 0;
             }
         }
 
@@ -2553,9 +2581,10 @@ const EnemyController = {
             // FIX: Obstacles approach from behind (lower z), so check distance from enemy to obstacle
             const distance = enemyModel.position.z - obstacle.mesh.position.z;
 
-            // Check if obstacle is behind and approaching (within jump range of 0-6 units)
-            if (distance > 0 && distance < 6 && sameColumn) {
-                console.log(`🚧 Obstacle detected! Lane ${obstacle.lane}, distance: ${distance.toFixed(2)}`);
+            // BUG FIX #4: Increased detection range from 6 to 12 units
+            // Enemy needs more advance warning to trigger jump before collision at high speed
+            if (distance > 0 && distance < 12 && sameColumn) {
+                console.log(`🚧 Enemy obstacle detected! Lane ${obstacle.lane}, distance: ${distance.toFixed(2)}`);
                 return obstacle;
             }
         }
@@ -7861,19 +7890,41 @@ function checkCollisions() {
     if (PlayerController.isInvincible) return;
 
     // Check obstacle collisions
-    // In chase mode: obstacles are safe UNTIL player throws for the first time
-    // After first throw in chase mode, obstacles become dangerous
-    const shouldCheckObstacleCollision = (GameState.selectedLevel !== 'chase') ||
-                                         (GameState.selectedLevel === 'chase' && PlayerController.hasThrown);
+    // BUG FIX #1: ALWAYS check obstacle collision (removed hasThrown requirement)
+    // Previously obstacles were safe until first throw - caused players to run through concrete on game start
+    // BUG FIX #3: Increased collision threshold from 1.5 to 3.0 to handle high speed/frame drops
 
-    if (shouldCheckObstacleCollision && !PlayerController.isJumping) {
+    if (!PlayerController.isJumping) {
         obstacles.forEach(obstacle => {
             if (obstacle.active) {
                 const distance = Math.abs(obstacle.mesh.position.z - playerModel.position.z);
-                const sameColumn = obstacle.lane === PlayerController.targetLane;
 
-                if (distance < 1.5 && sameColumn) {
-                    console.log('💥 Player hit obstacle!');
+                // BUG FIX #6: Use actual player X position for lane check, not targetLane
+                // Calculate which lane player is physically in based on X position
+                let playerPhysicalLane = 1; // default center
+                const playerX = playerModel.position.x;
+                const leftLaneX = LANE_POSITIONS[0];   // -2
+                const centerLaneX = LANE_POSITIONS[1]; // 0
+                const rightLaneX = LANE_POSITIONS[2];  // 2
+
+                // Determine physical lane based on actual X position
+                const distToLeft = Math.abs(playerX - leftLaneX);
+                const distToCenter = Math.abs(playerX - centerLaneX);
+                const distToRight = Math.abs(playerX - rightLaneX);
+
+                if (distToLeft < distToCenter && distToLeft < distToRight) {
+                    playerPhysicalLane = 0; // left
+                } else if (distToRight < distToCenter && distToRight < distToLeft) {
+                    playerPhysicalLane = 2; // right
+                } else {
+                    playerPhysicalLane = 1; // center
+                }
+
+                const sameColumn = obstacle.lane === playerPhysicalLane;
+
+                // Increased threshold from 1.5 to 3.0 to prevent high-speed pass-through
+                if (distance < 3.0 && sameColumn) {
+                    console.log('💥 Player hit obstacle! Distance:', distance.toFixed(2), 'Lane:', playerPhysicalLane);
                     handlePlayerHit();
                     obstacle.deactivate();
                 }
@@ -8478,14 +8529,17 @@ function animate() {
             PlayerController.update(delta);
             EnemyController.update(delta);
 
+            // BUG FIX #5: Check collisions BEFORE obstacles move
+            // This prevents obstacles from "teleporting" past player in single frame at high speed
+            // Original: obstacles moved first, then collision checked (could miss fast-moving obstacles)
+            checkCollisions();
+
             // Only update stage elements if not frozen (during enemy fall animation)
             if (!GameState.stageFrozen) {
                 ObstacleManager.update(delta);
                 PickupManager.update(delta);
                 EnvironmentManager.update(delta);
             }
-
-            checkCollisions();
 
             // Update camera to follow player, thrown item, or enemy reaction
             if (PlayerController.isFollowingEnemyReaction && enemyModel) {
