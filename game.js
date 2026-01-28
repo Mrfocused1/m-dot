@@ -815,6 +815,7 @@ const loadingProgress = {
     playerPickupAnim: false,
     playerThrowAnim: false,
     playerHoldingAnim: false,
+    playerFallAnim: false,
 
     // Enemy animations (critical for cinematic)
     enemyLookBehindAnim: false,
@@ -822,8 +823,8 @@ const loadingProgress = {
     enemyJumpAnim: false,
 
     update() {
-        // Count all critical assets (11 total)
-        const total = 11;
+        // Count all critical assets (12 total)
+        const total = 12;
         const loaded = (this.playerModel ? 1 : 0) +
                       (this.enemyModel ? 1 : 0) +
                       (this.colaCanModel ? 1 : 0) +
@@ -832,6 +833,7 @@ const loadingProgress = {
                       (this.playerPickupAnim ? 1 : 0) +
                       (this.playerThrowAnim ? 1 : 0) +
                       (this.playerHoldingAnim ? 1 : 0) +
+                      (this.playerFallAnim ? 1 : 0) +
                       (this.enemyLookBehindAnim ? 1 : 0) +
                       (this.enemyDeathAnim ? 1 : 0) +
                       (this.enemyJumpAnim ? 1 : 0);
@@ -1641,6 +1643,7 @@ const PlayerController = {
     invincibilityTimer: 0,
     previousTargetLane: 1,
     isJumping: false,
+    isFalling: false,
     jumpStartY: 1.0,
     groundTimer: 0, // BUG FIX #2: Tracks time on ground to detect stuck isJumping flag
     isPickingUp: false,
@@ -1673,6 +1676,7 @@ const PlayerController = {
         this.isInvincible = false;
         this.invincibilityTimer = 0;
         this.isJumping = false;
+        this.isFalling = false;
         this.jumpStartY = 1.0;
         this.groundTimer = 0; // BUG FIX #2: Reset ground timer
         this.isPickingUp = false;
@@ -1709,8 +1713,8 @@ const PlayerController = {
         // Player must avoid obstacles by switching lanes only
 
         // Handle lane change input
-        // CRITICAL FIX: Don't allow lane changes during throw or pickup animations
-        if (Input.touchActive && !Input.inputProcessed && !this.isJumping && !this.isThrowing && !this.isPickingUp) {
+        // CRITICAL FIX: Don't allow lane changes during throw, pickup, or fall animations
+        if (Input.touchActive && !Input.inputProcessed && !this.isJumping && !this.isThrowing && !this.isPickingUp && !this.isFalling) {
             if (Input.touchSide === 'LEFT' && this.targetLane > 0) {
                 this.targetLane--;
                 Input.inputProcessed = true;
@@ -1813,6 +1817,9 @@ const PlayerController = {
     },
 
     startJump() {
+        // Don't allow jump during fall
+        if (this.isFalling) return;
+
         if (!playerMixer || !playerAnimations.jump) return;
 
         console.log('🦘 Auto-jump triggered!');
@@ -1849,6 +1856,9 @@ const PlayerController = {
     },
 
     startPickup() {
+        // Don't allow pickup during fall
+        if (this.isFalling) return;
+
         // EMERGENCY CLEANUP: If we're still in a throw state, force cleanup
         // This prevents frozen movement bug on mobile
         if (this.isThrowing) {
@@ -1983,6 +1993,9 @@ const PlayerController = {
     },
 
     startThrow() {
+        // Don't allow throw during fall
+        if (this.isFalling) return;
+
         // CRITICAL FIX: Force-clear pickup state to prevent state conflicts
         if (this.isPickingUp) {
             console.warn('⚠️ FORCE CLEAR: isPickingUp was true when starting throw');
@@ -2130,6 +2143,14 @@ const PlayerController = {
         this.switchToRunAnimation();
 
         console.log('🎯 Throw cleanup complete. States: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp);
+    },
+
+    finishFall() {
+        console.log('Fall animation finished');
+        this.isFalling = false;
+
+        // The timeout in handlePlayerHit will handle the rest
+        // This is just to ensure state is clean
     },
 
     createThrownItem() {
@@ -2926,6 +2947,7 @@ function fullGameRefresh() {
     PlayerController.hasItem = false;
     PlayerController.isPickingUp = false;
     PlayerController.isJumping = false;
+    PlayerController.isFalling = false;
     PlayerController.cinematicThrowActive = false;
     PlayerController.isFollowingThrowItem = false;
     PlayerController.isFollowingEnemyReaction = false;
@@ -2947,7 +2969,13 @@ function fullGameRefresh() {
     Input.touchSide = null;
     Input.wasSwipe = false;
 
-    // 10. RESTORE PLAYER VISIBILITY AND ANIMATION
+    // 10. RESET FALL ANIMATION STATE
+    if (playerAnimations.fall) {
+        playerAnimations.fall.stop();
+        playerAnimations.fall.enabled = false;
+    }
+
+    // 11. RESTORE PLAYER VISIBILITY AND ANIMATION
     if (playerModel) {
         playerModel.visible = true;
     }
@@ -5728,11 +5756,12 @@ function loadPlayerCharacter() {
         loadingProgress.playerModel = true;
         loadingProgress.update();
 
-        // Load jump, pickup, holding, and throw animations
+        // Load jump, pickup, holding, throw, and fall animations
         loadPlayerJumpAnimation();
         loadPlayerPickupAnimation();
         loadPlayerHoldingRunAnimation();
         loadPlayerThrowAnimation();
+        loadPlayerFallAnimation();
 
         // Check if both characters are loaded to start game
         checkStage1AssetsLoaded();
@@ -5761,6 +5790,8 @@ function setupPlayerAnimationFinishedHandler() {
             PlayerController.finishPickup();
         } else if (e.action === playerAnimations.throw) {
             PlayerController.finishThrow();
+        } else if (e.action === playerAnimations.fall) {
+            PlayerController.finishFall();
         }
     };
 
@@ -5867,6 +5898,32 @@ function loadPlayerThrowAnimation() {
         }
     }, undefined, (error) => {
         console.warn('Throw animation not loaded:', error);
+    });
+}
+
+function loadPlayerFallAnimation() {
+    const loader = stage1FBXLoader;
+
+    loader.load('player_fall.fbx', (fbx) => {
+        if (fbx.animations && fbx.animations.length > 0) {
+            const clip = normalizeAndCleanAnimation(fbx.animations[0], 'PLAYER FALL');
+
+            playerAnimations.fall = playerMixer.clipAction(clip);
+            playerAnimations.fall.setLoop(THREE.LoopOnce); // Play once and stop
+            playerAnimations.fall.clampWhenFinished = true; // Hold on last frame
+
+            // Ensure handler is set up (idempotent - safe to call multiple times)
+            setupPlayerAnimationFinishedHandler();
+
+            console.log('Fall animation loaded');
+
+            // Track loading progress
+            loadingProgress.playerFallAnim = true;
+            loadingProgress.update();
+            checkStage1AssetsLoaded();
+        }
+    }, undefined, (error) => {
+        console.warn('Fall animation not loaded:', error);
     });
 }
 
@@ -8554,33 +8611,88 @@ function handlePlayerHit() {
     GameState.gameSpeed = 0;
     GameState.stageFrozen = true;
 
-    // Show "You're wasting time" message
-    const overlay = UI.overlay;
-    overlay.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: rgba(0,0,0,0.9);">
-            <div style="text-align: center;">
-                <h1 style="font-size: clamp(48px, 10vw, 96px); color: #ff0000; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); margin-bottom: 30px;">
-                    YOU'RE WASTING TIME
-                </h1>
-                <p style="font-size: clamp(20px, 4vw, 32px); color: white; font-family: 'Orbitron', sans-serif;">
-                    Avoid the obstacles!
-                </p>
+    // PLAY FALL ANIMATION
+    PlayerController.isFalling = true;
+
+    // Stop current animation
+    if (playerAnimations[currentPlayerAnimation]) {
+        playerAnimations[currentPlayerAnimation].fadeOut(0.1);
+    }
+
+    // Play fall animation
+    if (playerAnimations.fall) {
+        playerAnimations.fall.stop();
+        playerAnimations.fall.reset();
+        playerAnimations.fall.enabled = true;
+        playerAnimations.fall.fadeIn(0.1);
+        playerAnimations.fall.play();
+        currentPlayerAnimation = 'fall';
+
+        console.log('Playing fall animation');
+
+        // Get animation duration
+        const clipDuration = playerAnimations.fall.getClip().duration || 2.0;
+
+        // After animation completes, show message and refresh
+        setTimeout(() => {
+            // Show warning overlay
+            const overlay = UI.overlay;
+            overlay.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: rgba(0,0,0,0.9);">
+                    <div style="text-align: center;">
+                        <h1 style="font-size: clamp(48px, 10vw, 96px); color: #ff0000; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); margin-bottom: 30px;">
+                            YOU'RE WASTING TIME
+                        </h1>
+                        <p style="font-size: clamp(20px, 4vw, 32px); color: white; font-family: 'Orbitron', sans-serif;">
+                            Avoid the obstacles!
+                        </p>
+                    </div>
+                </div>
+            `;
+
+            // After 1 second, do full refresh
+            setTimeout(() => {
+                console.log('🔄 Clearing obstacle warning and doing full refresh');
+                overlay.innerHTML = '';
+                PlayerController.isFalling = false;
+
+                // DO FULL GAME REFRESH - resets everything to fresh state
+                fullGameRefresh();
+
+                // Give player brief invincibility after refresh
+                PlayerController.isInvincible = true;
+                PlayerController.invincibilityTimer = 2;
+            }, 1000);
+        }, clipDuration * 1000);
+    } else {
+        console.warn('Fall animation not available - using old behavior');
+        // Fallback to old behavior if animation doesn't exist
+        const overlay = UI.overlay;
+        overlay.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: rgba(0,0,0,0.9);">
+                <div style="text-align: center;">
+                    <h1 style="font-size: clamp(48px, 10vw, 96px); color: #ff0000; font-family: 'Orbitron', sans-serif; text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); margin-bottom: 30px;">
+                        YOU'RE WASTING TIME
+                    </h1>
+                    <p style="font-size: clamp(20px, 4vw, 32px); color: white; font-family: 'Orbitron', sans-serif;">
+                        Avoid the obstacles!
+                    </p>
+                </div>
             </div>
-        </div>
-    `;
+        `;
+        setTimeout(() => {
+            console.log('🔄 Clearing obstacle warning and doing full refresh');
+            overlay.innerHTML = '';
+            PlayerController.isFalling = false;
 
-    // After 2 seconds, clear overlay and do FULL GAME REFRESH
-    setTimeout(() => {
-        console.log('🔄 Clearing obstacle warning and doing full refresh');
-        overlay.innerHTML = '';
+            // DO FULL GAME REFRESH - resets everything to fresh state
+            fullGameRefresh();
 
-        // DO FULL GAME REFRESH - resets everything to fresh state
-        fullGameRefresh();
-
-        // Give player brief invincibility after refresh
-        PlayerController.isInvincible = true;
-        PlayerController.invincibilityTimer = 2;
-    }, 2000);
+            // Give player brief invincibility after refresh
+            PlayerController.isInvincible = true;
+            PlayerController.invincibilityTimer = 2;
+        }, 2000);
+    }
 }
 
 // ============================================================================
