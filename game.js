@@ -1661,7 +1661,7 @@ const PlayerController = {
     cinematicCameraTarget: { x: 0, y: 0, z: 0 }, // Smoothed camera target
     cinematicCameraPosition: { x: 0, y: 0, z: 0 }, // Smoothed camera position
     throwVelocity: { x: 0, y: 0, z: 0 }, // Projectile velocity for arc physics
-    throwGravity: -15, // Gravity for arc trajectory
+    throwGravity: 0, // No gravity - STRAIGHT FORWARD throw (was -15 for arc)
     throwTimeScale: 1.0, // Time scale during throw (for slow motion)
 
     init() {
@@ -2236,38 +2236,35 @@ const PlayerController = {
         const throwStartZ = thrownItem.position.z;
 
         // ============================================
-        // ARC PHYSICS SETUP - Calculate velocity for parabolic trajectory
+        // STRAIGHT FORWARD THROW - Direct hit, no arc
         // ============================================
 
         // Get enemy position (or default target)
         const targetPos = enemyModel ? enemyModel.position.clone() : new THREE.Vector3(throwLaneX, 1.5, -30);
         targetPos.y += 1.5; // Aim at enemy's chest/head level
 
-        // Calculate horizontal distance and direction
+        // Calculate distance to target
         const dx = targetPos.x - thrownItem.position.x;
         const dz = targetPos.z - thrownItem.position.z;
+        const dy = targetPos.y - thrownItem.position.y;
         const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
 
-        // Time of flight (adjust for dramatic arc)
-        const flightTime = 1.2; // 1.2 seconds for nice arc
+        // FAST, DIRECT throw - much shorter flight time
+        const flightTime = 0.6; // Fast throw (was 1.2 for slow arc)
 
-        // Calculate initial velocities for arc trajectory
+        // Calculate velocities for STRAIGHT LINE trajectory
         // Horizontal velocity: distance / time
         const vx = dx / flightTime;
         const vz = dz / flightTime;
 
-        // Vertical velocity: solve for initial vy to hit target
-        // y = y0 + vy*t + 0.5*g*t^2
-        // Target height = start height + vy*t + 0.5*gravity*t^2
-        const dy = targetPos.y - thrownItem.position.y;
-        const gravity = this.throwGravity; // -15
-        // vy = (dy - 0.5*g*t^2) / t
-        const vy = (dy - 0.5 * gravity * flightTime * flightTime) / flightTime;
+        // Vertical velocity: STRAIGHT LINE to target with slight downward bias
+        // This ensures the can hits the enemy's torso, not going over their head
+        const vy = (dy / flightTime) - 1.0; // Slight downward bias to hit center mass
 
         // Store velocity
         this.throwVelocity = { x: vx, y: vy, z: vz };
 
-        console.log(`CINEMATIC THROW: Arc physics initialized`);
+        console.log(`CINEMATIC THROW: Straight-line physics initialized`);
         console.log(`  Start: (${thrownItem.position.x.toFixed(2)}, ${thrownItem.position.y.toFixed(2)}, ${thrownItem.position.z.toFixed(2)})`);
         console.log(`  Target: (${targetPos.x.toFixed(2)}, ${targetPos.y.toFixed(2)}, ${targetPos.z.toFixed(2)})`);
         console.log(`  Velocity: (${vx.toFixed(2)}, ${vy.toFixed(2)}, ${vz.toFixed(2)})`);
@@ -2293,11 +2290,11 @@ const PlayerController = {
             flightElapsed += dt;
 
             // ============================================
-            // ARC PHYSICS UPDATE
+            // STRAIGHT LINE PHYSICS UPDATE (no arc)
             // ============================================
 
-            // Update velocity with gravity
-            this.throwVelocity.y += this.throwGravity * dt;
+            // No gravity applied - straight line trajectory
+            // this.throwVelocity.y += this.throwGravity * dt; // Disabled for straight throw
 
             // Update position
             thrownItem.position.x += this.throwVelocity.x * dt;
