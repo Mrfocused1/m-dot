@@ -2422,59 +2422,10 @@ const PlayerController = {
             if (enemyAnimations.death && enemyAnimations.death.isRunning()) {
                 // Death animation is playing, don't interrupt it
                 console.log('💀 Death animation still playing, not resetting to run');
-            } else if (enemyAnimations.run && enemyMixer) {
-                // === COMPREHENSIVE ENEMY RESET - Three.js Best Practice ===
-                // Source: https://github.com/mrdoob/three.js/issues/13097
-                // Key insight: "only stop/reset the action does the trick"
-                // DO NOT use skeleton.pose() + mixer.update() - causes mixer optimization issues
-                // per GitHub Issue #25518 (mixer won't update bones without keyframe changes)
-
-                // 1. Stop ALL animations on mixer to clean up death animation state
-                enemyMixer.stopAllAction();
-                console.log('🎬 Stopped all enemy animations');
-
-                // 2. Reset model transform (position, rotation, scale)
-                if (enemyModel) {
-                    enemyModel.rotation.y = Math.PI; // Face away from player (180 degrees)
-                    enemyModel.position.set(0, 1.0, -15); // Center lane
-                    enemyModel.scale.set(0.01, 0.01, 0.01);
-                    console.log('🔄 Enemy model transform reset to spawn position');
-                }
-
-                // 3. CRITICAL: Fully reset death animation state
-                // clampWhenFinished keeps the last frame active, must disable completely
-                if (enemyAnimations.death) {
-                    enemyAnimations.death.stop();
-                    enemyAnimations.death.reset();
-                    enemyAnimations.death.enabled = false;
-                    enemyAnimations.death.time = 0;
-                    enemyAnimations.death.setEffectiveWeight(0);
-                    console.log('💀 Death animation fully disabled and reset');
-                }
-                if (enemyAnimations.lookBehind) {
-                    enemyAnimations.lookBehind.stop();
-                    enemyAnimations.lookBehind.enabled = false;
-                    enemyAnimations.lookBehind.setEffectiveWeight(0);
-                }
-
-                // 4. Reset enemy lane to center
-                EnemyController.currentLane = 1;
-                EnemyController.targetLane = 1;
-
-                // 5. Start run animation fresh with COMPLETE reset
-                // This naturally returns skeleton to run animation's first frame
-                // without manual bone manipulation
-                enemyAnimations.run.stop();
-                enemyAnimations.run.reset();
-                enemyAnimations.run.time = 0;
-                enemyAnimations.run.enabled = true;
-                enemyAnimations.run.setEffectiveWeight(1);
-                enemyAnimations.run.setEffectiveTimeScale(1);
-                enemyAnimations.run.play();
-
-                console.log('✅ Enemy fully reset: all actions stopped, run animation restarted from frame 0');
+            } else {
+                // Use centralized enemy reset function
+                resetEnemyToSpawn();
             }
-            enemyLookBehindTriggered = false;
 
             console.log('🎬 States after cleanup: isThrowing=' + this.isThrowing + ', hasItem=' + this.hasItem + ', isPickingUp=' + this.isPickingUp + ', gameSpeed=' + GameState.gameSpeed);
 
@@ -2528,6 +2479,72 @@ const PlayerController = {
         console.log('Switched to holding run animation');
     }
 };
+
+// ============================================================================
+// ENEMY RESET FUNCTION
+// ============================================================================
+
+function resetEnemyToSpawn() {
+    console.log('🔄 Resetting enemy to spawn position');
+
+    // Check if enemy is loaded
+    if (!enemyModel || !enemyMixer || !enemyAnimations.run) {
+        console.warn('⚠️ Enemy not fully loaded, cannot reset');
+        return;
+    }
+
+    // === COMPREHENSIVE ENEMY RESET - Three.js Best Practice ===
+    // Source: https://github.com/mrdoob/three.js/issues/13097
+    // Key insight: "only stop/reset the action does the trick"
+
+    // 1. Stop ALL animations on mixer to clean up any animation state
+    enemyMixer.stopAllAction();
+    console.log('🎬 Stopped all enemy animations');
+
+    // 2. Reset model transform (position, rotation, scale)
+    enemyModel.rotation.y = Math.PI; // Face away from player (180 degrees)
+    enemyModel.position.set(0, 1.0, -20); // Center lane, spawn position
+    enemyModel.scale.set(0.01, 0.01, 0.01);
+    console.log('🔄 Enemy model transform reset to spawn position');
+
+    // 3. Reset all animation states
+    if (enemyAnimations.death) {
+        enemyAnimations.death.stop();
+        enemyAnimations.death.reset();
+        enemyAnimations.death.enabled = false;
+        enemyAnimations.death.time = 0;
+        enemyAnimations.death.setEffectiveWeight(0);
+    }
+    if (enemyAnimations.lookBehind) {
+        enemyAnimations.lookBehind.stop();
+        enemyAnimations.lookBehind.enabled = false;
+        enemyAnimations.lookBehind.setEffectiveWeight(0);
+    }
+    if (enemyAnimations.jump) {
+        enemyAnimations.jump.stop();
+        enemyAnimations.jump.enabled = false;
+        enemyAnimations.jump.setEffectiveWeight(0);
+    }
+
+    // 4. Reset enemy lane to center
+    EnemyController.currentLane = 1;
+    EnemyController.targetLane = 1;
+
+    // 5. Start run animation fresh with COMPLETE reset
+    // This naturally returns skeleton to run animation's first frame
+    enemyAnimations.run.stop();
+    enemyAnimations.run.reset();
+    enemyAnimations.run.time = 0;
+    enemyAnimations.run.enabled = true;
+    enemyAnimations.run.setEffectiveWeight(1);
+    enemyAnimations.run.setEffectiveTimeScale(1);
+    enemyAnimations.run.play();
+
+    // 6. Reset look-behind trigger
+    enemyLookBehindTriggered = false;
+
+    console.log('✅ Enemy fully reset: skeleton restored, run animation playing from frame 0');
+}
 
 // ============================================================================
 // ENEMY CONTROLLER
@@ -7970,7 +7987,7 @@ function checkCollisions() {
             if (GameState.currentMode === 'CHASE') {
                 GameState.score += 1000;
                 console.log('Caught enemy! +1000');
-                enemyModel.position.z = -20;
+                resetEnemyToSpawn(); // Properly reset enemy skeleton and animations
             } else {
                 handlePlayerHit();
             }
@@ -8802,6 +8819,14 @@ function init() {
     const levelParam = urlParams.get('level');
     if (levelParam === '1') {
         IntroAnimation.start();
+
+        // Safety timeout: Remove intro loader after 10 seconds even if assets don't load
+        setTimeout(() => {
+            if (!IntroAnimation.completed) {
+                console.log('⚠️ Assets loading timeout - removing intro loader');
+                IntroAnimation.complete();
+            }
+        }, 10000);
     }
 
     // Create scene
