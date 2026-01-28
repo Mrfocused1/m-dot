@@ -2053,6 +2053,15 @@ const PlayerController = {
                         GameState.timeScale = 0.3; // Slow to 30% speed
                         console.log('🎬 Slow motion activated!');
 
+                        // Play hit sound effect
+                        const hitSound = document.getElementById('hit-sound');
+                        if (hitSound) {
+                            hitSound.currentTime = 0; // Reset to start
+                            hitSound.volume = 0.7;
+                            hitSound.play().catch(e => console.log('Hit sound play failed:', e));
+                            console.log('🔊 Hit sound effect played');
+                        }
+
                         // Switch camera focus to ENEMY (not the can)
                         this.activeThrownItem = null; // Stop following can
                         this.isFollowingEnemyReaction = true; // New flag for enemy close-up
