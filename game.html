@@ -157,13 +157,171 @@
             opacity: 0;
         }
 
+        /* Mobile Responsiveness for Loading Screen */
         @media (max-width: 768px) {
-            #intro-vs-text {
-                font-size: 5rem;
+            /* Make intro loader panels fit on narrower screens */
+            #intro-loader-left,
+            #intro-loader-right {
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+                overflow: hidden;
+                word-wrap: break-word;
             }
-            #intro-loader-left, #intro-loader-right {
-                padding-left: 1rem;
-                padding-right: 1rem;
+
+            /* Reduce text sizes on mobile */
+            #intro-loader-left > div:first-child,
+            #intro-loader-right > div:first-child {
+                font-size: 2rem !important;
+            }
+
+            #intro-loader-left > div:nth-child(2),
+            #intro-loader-right > div:nth-child(2) {
+                font-size: 1.5rem !important;
+            }
+
+            #intro-loader-left > div:nth-child(3),
+            #intro-loader-right > div:nth-child(3) {
+                font-size: 0.625rem !important;
+                padding: 0.2rem 0.75rem !important;
+            }
+
+            /* Reduce VS logo size */
+            #intro-vs-text {
+                font-size: 5rem !important;
+                -webkit-text-stroke: 1px white;
+            }
+
+            /* Make loading bar wider on mobile */
+            #intro-bar-container {
+                width: 80% !important;
+                max-width: 100% !important;
+            }
+
+            /* Reduce loading text size */
+            #intro-text {
+                font-size: 0.75rem !important;
+                letter-spacing: 0.3em !important;
+            }
+
+            /* Adjust VS position for mobile */
+            #intro-vs {
+                top: 50% !important;
+            }
+
+            /* Smaller percentage text */
+            #intro-percentage {
+                font-size: 0.625rem !important;
+                top: -1.25rem !important;
+                min-width: 3em;
+            }
+        }
+
+        /* Extra small mobile (phones in portrait) */
+        @media (max-width: 480px) {
+            /* Even smaller text for tiny screens */
+            #intro-loader-left > div:first-child,
+            #intro-loader-right > div:first-child {
+                font-size: 1.5rem !important;
+            }
+
+            #intro-loader-left > div:nth-child(2),
+            #intro-loader-right > div:nth-child(2) {
+                font-size: 1.25rem !important;
+            }
+
+            #intro-loader-left > div:nth-child(3),
+            #intro-loader-right > div:nth-child(3) {
+                font-size: 0.5rem !important;
+                padding: 0.15rem 0.5rem !important;
+                letter-spacing: 0.1em !important;
+            }
+
+            #intro-vs-text {
+                font-size: 4rem !important;
+            }
+
+            #intro-bar-container {
+                width: 90% !important;
+                bottom: 4rem !important;
+            }
+
+            /* Reduce loading bar height */
+            #intro-bar {
+                height: 0.5rem !important;
+            }
+
+            #intro-text {
+                font-size: 0.625rem !important;
+                letter-spacing: 0.2em !important;
+                bottom: 1.5rem !important;
+            }
+
+            #intro-percentage {
+                font-size: 0.5rem !important;
+                top: -1rem !important;
+            }
+        }
+
+        /* Landscape mobile (phones rotated) */
+        @media (max-width: 896px) and (orientation: landscape) {
+            /* Reduce vertical spacing in landscape */
+            #intro-vs {
+                top: 45% !important;
+            }
+
+            #intro-bar-container {
+                bottom: 3rem !important;
+            }
+
+            #intro-text {
+                bottom: 1rem !important;
+            }
+
+            /* Smaller VS logo in landscape */
+            #intro-vs-text {
+                font-size: 4rem !important;
+            }
+
+            /* Smaller percentage indicator */
+            #intro-percentage {
+                top: -1rem !important;
+                font-size: 0.5rem !important;
+            }
+        }
+
+        /* Very small landscape (small phones rotated) */
+        @media (max-height: 400px) and (orientation: landscape) {
+            #intro-vs {
+                top: 40% !important;
+            }
+
+            #intro-vs-text {
+                font-size: 3rem !important;
+            }
+
+            #intro-loader-left > div:first-child,
+            #intro-loader-right > div:first-child {
+                font-size: 1.25rem !important;
+            }
+
+            #intro-loader-left > div:nth-child(2),
+            #intro-loader-right > div:nth-child(2) {
+                font-size: 1rem !important;
+            }
+
+            #intro-loader-left > div:nth-child(3),
+            #intro-loader-right > div:nth-child(3) {
+                margin-top: 0.5rem !important;
+                font-size: 0.5rem !important;
+            }
+
+            #intro-bar-container {
+                bottom: 2rem !important;
+            }
+
+            #intro-text {
+                bottom: 0.5rem !important;
+                font-size: 0.5rem !important;
             }
         }
     </style>
