@@ -1684,8 +1684,6 @@ const PlayerController = {
         this.isFollowingEnemyReaction = false;
         this.throwCameraTimer = 0;
         this.throwResultShown = false;
-        this.throwingCanModel = null; // MOBILE FIX: World-space can shown during throw animation
-        this._throwDebugCounter = 0;   // Debug counter for logging
         // Reset cinematic throw properties
         this.cinematicThrowActive = false;
         this.throwStartPosition = null;
@@ -1701,11 +1699,6 @@ const PlayerController = {
         if (this.throwTimeout) {
             clearTimeout(this.throwTimeout);
             this.throwTimeout = null;
-        }
-        // Clean up any existing throwing can
-        if (this.throwingCanModel) {
-            scene.remove(this.throwingCanModel);
-            this.throwingCanModel = null;
         }
     },
 
@@ -1791,35 +1784,6 @@ const PlayerController = {
             }
         }
 
-        // CRITICAL FIX: Animate the throwing can during throw animation
-        // The can must be in WORLD SPACE (added to scene, not playerModel) because:
-        // playerModel.scale = 0.01, which would make child objects microscopic!
-        // When added to scene directly, the can uses world coordinates and is properly visible
-        if (this.isThrowing && this.throwingCanModel && playerModel) {
-            // Position the can above the player's head in WORLD coordinates
-            // Camera is behind player at +Z, player faces -Z, so we want can between player and camera
-            this.throwingCanModel.position.set(
-                playerModel.position.x,           // Same X as player (centered)
-                playerModel.position.y + 3.5,     // Above player's head in WORLD space
-                playerModel.position.z + 2.0      // Between player and camera (camera is at +6)
-            );
-
-            // Spin the can rapidly for dramatic effect
-            this.throwingCanModel.rotation.x += 0.3;
-            this.throwingCanModel.rotation.y += 0.2;
-
-            // DEBUG: Log position every 30 frames
-            if (!this._throwDebugCounter) this._throwDebugCounter = 0;
-            this._throwDebugCounter++;
-            if (this._throwDebugCounter % 30 === 1) {
-                console.log('🥤 THROW CAN UPDATE:', {
-                    position: this.throwingCanModel.position.clone(),
-                    scale: this.throwingCanModel.scale.clone(),
-                    visible: this.throwingCanModel.visible,
-                    inScene: scene.children.includes(this.throwingCanModel)
-                });
-            }
-        }
     },
 
     checkAutoJump() {
@@ -2048,47 +2012,6 @@ const PlayerController = {
             heldCanModel = null;
         }
 
-        // Create a NEW can in WORLD SPACE for the throw animation
-        // This can is added directly to scene, so it has proper world-scale visibility
-        if (colaCanTemplate && playerModel) {
-            this.throwingCanModel = colaCanTemplate.clone();
-
-            // WORLD SCALE: Large enough to be clearly visible (not affected by playerModel's 0.01 scale!)
-            this.throwingCanModel.scale.set(1.5, 1.5, 1.5);
-
-            // Initial WORLD POSITION: Above player's head
-            this.throwingCanModel.position.set(
-                playerModel.position.x,
-                playerModel.position.y + 3.5,
-                playerModel.position.z + 2.0  // Toward camera so it's visible
-            );
-
-            // Ensure visibility
-            this.throwingCanModel.visible = true;
-            this.throwingCanModel.frustumCulled = false;
-            this.throwingCanModel.renderOrder = 100;
-            this.throwingCanModel.traverse((child) => {
-                if (child.isMesh) {
-                    child.visible = true;
-                    child.frustumCulled = false;
-                    child.renderOrder = 100;
-                }
-            });
-
-            // Add to SCENE (not playerModel!) so it uses world coordinates
-            scene.add(this.throwingCanModel);
-
-            console.log('🥤 THROWING CAN CREATED IN WORLD SPACE:', {
-                position: this.throwingCanModel.position.clone(),
-                scale: this.throwingCanModel.scale.clone(),
-                visible: this.throwingCanModel.visible,
-                inScene: true
-            });
-        } else {
-            console.warn('⚠️ Could not create throwing can - colaCanTemplate or playerModel missing');
-            this.throwingCanModel = null;
-        }
-
         this.isThrowing = true;
         this.hasItem = false; // CRITICAL: Clear immediately, don't wait for finishThrow
         this.hasThrown = true; // Enable obstacle collision after first throw
@@ -2170,14 +2093,6 @@ const PlayerController = {
             this.throwTimeout = null;
         }
 
-        // Clean up throwing can if it still exists (failsafe)
-        if (this.throwingCanModel) {
-            console.log('🥤 Cleaning up throwing can in finishThrow (failsafe)');
-            scene.remove(this.throwingCanModel);
-            this.throwingCanModel = null;
-            this._throwDebugCounter = 0;
-        }
-
         // Reset all throw-related states
         this.isThrowing = false;
         this.hasItem = false;
@@ -2214,16 +2129,6 @@ const PlayerController = {
 
     createThrownItem() {
         if (!playerModel) return;
-
-        // CRITICAL FIX: Remove the world-space throwing can now that projectile is being created
-        // The throwingCanModel was added to scene (not playerModel) for proper visibility during throw animation
-        if (this.throwingCanModel) {
-            console.log('Removing throwing can from scene (at 95% of throw animation)');
-            scene.remove(this.throwingCanModel);
-            this.throwingCanModel = null;
-            this._throwDebugCounter = 0; // Reset debug counter
-            console.log('Throwing can removed - projectile taking over');
-        }
 
         // Also clean up any legacy heldCanModel (shouldn't exist but just in case)
         if (heldCanModel && playerModel) {
@@ -8726,13 +8631,6 @@ function resetGame() {
         playerModel.remove(heldCanModel);
         heldCanModel = null;
         console.log('🥤 Held can cleaned up on game reset');
-    }
-
-    // Clean up throwing can if it exists (MOBILE FIX)
-    if (PlayerController.throwingCanModel) {
-        scene.remove(PlayerController.throwingCanModel);
-        PlayerController.throwingCanModel = null;
-        console.log('🥤 Throwing can cleaned up on game reset');
     }
 
     startGame();
