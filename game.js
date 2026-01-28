@@ -590,10 +590,18 @@ let assetsLoaded = false;
 loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
     const progress = Math.round((itemsLoaded / itemsTotal) * 100);
     console.log(`🔄 Loading: ${progress}% (${itemsLoaded}/${itemsTotal})`);
+    IntroAnimation.updateProgress(progress);
 };
 loadingManager.onLoad = () => {
     console.log('✅ All assets loaded!');
     assetsLoaded = true;
+
+    // Complete intro animation if it was running
+    if (IntroAnimation.started && !IntroAnimation.completed) {
+        setTimeout(() => {
+            IntroAnimation.complete();
+        }, 500);
+    }
 
     // Show UI now that loading is complete
     setTimeout(() => {
@@ -617,7 +625,7 @@ let stage2AssetsLoaded = false;
 stage2LoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
     const progress = Math.round((itemsLoaded / itemsTotal) * 100);
     console.log(`🔄 Stage 2 Loading: ${progress}% (${itemsLoaded}/${itemsTotal})`);
-    Stage2LoadingScreen.updateProgress(progress);
+    IntroAnimation.updateProgress(progress);
 };
 stage2LoadingManager.onLoad = () => {
     console.log('✅ All Stage 2 assets loaded!');
@@ -628,22 +636,22 @@ stage2LoadingManager.onLoad = () => {
         warmupShootingMechanics();
     }, 100);
 
-    // Complete Stage 2 loading screen
+    // Complete intro animation
     setTimeout(() => {
         // Update UI BEFORE fading out loading screen so playing screen is ready underneath
         if (GameState.selectedLevel === 'shoot' || GameState.selectedLevel === 'shoot-horizontal') {
             UI.updateUI();
         }
 
-        Stage2LoadingScreen.complete();
+        IntroAnimation.complete();
 
         // Initialize horizontal controls AFTER loading screen fades out
-        // Loading screen takes 1000ms min + 500ms fade + 500ms remove = ~2000ms total
+        // Loading screen takes 500ms + 800ms fade = ~1300ms total
         if (GameState.isHorizontalMode) {
             setTimeout(() => {
                 console.log('[Stage2] Initializing horizontal controls after loading complete');
                 HorizontalControls.init();
-            }, 2000);
+            }, 1300);
         }
     }, 800); // Increased delay to allow warmup to complete
 };
@@ -923,6 +931,13 @@ const IntroAnimation = {
             barContainer.style.transition = 'opacity 0.3s';
             barContainer.style.opacity = '1';
         }, 1900);
+    },
+
+    updateProgress(percentage) {
+        const bar = document.getElementById('intro-bar-fill');
+        const percentText = document.getElementById('intro-percentage');
+        if (bar) bar.style.width = percentage + '%';
+        if (percentText) percentText.textContent = percentage + '%';
     },
 
     complete() {
@@ -8349,8 +8364,8 @@ function startShootingGame() {
     // Stop level 1 music when switching to level 2
     MusicController.stopAll();
 
-    // Show Stage 2 loading screen
-    Stage2LoadingScreen.show();
+    // Start intro animation for level 2 (already running if started from init)
+    // No need to call IntroAnimation.start() again - it's already started in init for level 2
 
     // Clear any existing chase mode objects
     if (playerModel) scene.remove(playerModel);
@@ -8945,6 +8960,18 @@ function init() {
         }, 100);
     } else if (levelParam === '2') {
         console.log('🎯 Auto-starting Mission 02 (Shoot Mode)');
+
+        // Start intro animation for level 2
+        IntroAnimation.start();
+
+        // Safety timeout: Remove intro loader after 10 seconds even if assets don't load
+        setTimeout(() => {
+            if (!IntroAnimation.completed) {
+                console.log('⚠️ Assets loading timeout - removing intro loader');
+                IntroAnimation.complete();
+            }
+        }, 10000);
+
         setTimeout(() => {
             startShootingGame();
         }, 100);
