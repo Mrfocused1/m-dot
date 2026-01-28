@@ -1767,6 +1767,13 @@ const PlayerController = {
         // MOBILE FIX: Spin the held can during throw animation for visual feedback
         // This makes the can visible and spinning while the throw animation plays
         if (this.isThrowing && heldCanModel) {
+            // Move can above player's head so it's clearly visible during throw animation
+            // The throw animation moves the arm dramatically, so a fixed hand position doesn't work
+            // Instead, position the can above/in-front so it's always in the camera's view
+            heldCanModel.position.set(0, 3.0, -2.0); // Above head, forward
+            heldCanModel.scale.set(3.0, 3.0, 3.0); // Make it even bigger during throw
+
+            // Spin the can rapidly for dramatic effect
             heldCanModel.rotation.x += 0.3;
             heldCanModel.rotation.y += 0.2;
         }
@@ -1938,13 +1945,17 @@ const PlayerController = {
             heldCanModel.position.set(0.7, 1.6, -1.2); // Right side, shoulder height, very forward
             heldCanModel.rotation.set(0, 0, 0.2); // Slight tilt for natural hold
 
-            // Make sure it's visible
+            // Make sure it's visible - MOBILE FIX: disable frustum culling and set high render order
             heldCanModel.visible = true;
+            heldCanModel.frustumCulled = false; // Prevent culling on mobile
+            heldCanModel.renderOrder = 100; // Render on top of player
             heldCanModel.traverse((child) => {
                 if (child.isMesh) {
                     child.visible = true;
                     child.castShadow = true;
                     child.receiveShadow = true;
+                    child.frustumCulled = false; // MOBILE FIX: Prevent culling on all child meshes
+                    child.renderOrder = 100; // MOBILE FIX: Ensure can renders on top
                 }
             });
 
@@ -1980,6 +1991,12 @@ const PlayerController = {
         if (heldCanModel) {
             console.log('   Held can visible:', heldCanModel.visible);
             console.log('   Held can position:', heldCanModel.position);
+            // MOBILE FIX: Immediately move can to prominent position for throw animation
+            // Position above head and forward so it's clearly visible during the entire throw
+            heldCanModel.position.set(0, 3.0, -2.0);
+            heldCanModel.scale.set(3.0, 3.0, 3.0);
+            heldCanModel.visible = true;
+            console.log('🥤 MOBILE FIX: Can moved to throw position (0, 3.0, -2.0) scale 3.0');
         }
         this.isThrowing = true;
         this.hasItem = false; // CRITICAL: Clear immediately, don't wait for finishThrow
